@@ -1,0 +1,300 @@
+@import url(https://fonts.googleapis.com/css?family=Cantarell);
+
+body {
+    font-family: 'Cantarell', sans-serif;
+    background-color: white;
+    background: #fff url(https://static.gnome.org/wiki.gnome.org/gnome/css/html-bg.png) 0 10px repeat-x;
+    color: black;
+}
+
+html, body {
+    margin: 0px;
+    padding: 0px;
+    height: 100%;
+}
+
+h1 {
+    font-size: 1.4em;
+}
+
+#header ul,
+#footer ul {
+    margin: 0;
+    padding: 0;
+}
+
+#header li,
+#footer li {
+    display: inline;
+    padding: 0 1em;
+}
+
+#header a,
+#footer a {
+    color: #3465a4;
+    text-decoration: none;
+}
+
+#footer a:hover {
+    border-bottom: 1px solid #888
+}
+
+/* Global Domain Bar */
+
+#global_domain_bar {
+    background: #fff;
+    height: 10px;
+    -moz-box-shadow: 0 4px 2px -2px #8fb3d9;
+    -webkit-box-shadow: 0 4px 2px -2px #8fb3d9;
+    box-shadow: 0 4px 2px -2px #8fb3d9;
+    position: relative;
+    max-width: 95%;
+    margin-left: auto;
+    margin-right: auto;
+}
+
+/* Tab */
+
+#global_domain_bar .tab {
+    background: #fff;
+    padding: 6px 8px;
+    font-size: 12px;
+    line-height: 16px;
+    -moz-border-radius: 5px;
+    -webkit-border-radius: 5px;
+    border-radius: 5px;
+    -moz-box-shadow: 0 4px 2px -2px #8fb3d9;
+    -webkit-box-shadow: 0 4px 2px -2px #8fb3d9;
+    box-shadow: 0 4px 2px -2px #8fb3d9;
+    white-space: nowrap;
+}
+#site_tab {
+    float: right;
+}
+#user_tab {
+    float: left;
+}
+#global_domain_bar .tab a.root {
+    color: #555753 !important;
+    font-weight: bold;
+    text-decoration: none;
+    background: #fff url(https://static.gnome.org/wiki.gnome.org/gnome/css/favicon.png) 0 0 no-repeat;
+    padding-left: 18px;
+    border-right: 1px solid #ccc;
+    padding-right: 6px;
+    margin-right: 3px;
+}
+#global_domain_bar .tab a.root:last-child {
+    border-right: 0;
+    padding-right: 0;
+    margin-right: 0;
+}
+#global_domain_bar .tab a.root:hover {
+    text-decoration: underline;
+}
+/***************************************************************/
+
+#topContent {
+    padding: 20px 10px 10px;
+}
+
+.chart-div {
+    margin: 5px;
+}
+
+.chart {
+    display: block;
+    height: 70px;
+    width: 100%;
+}
+
+.chart-title {
+    font-size: 11px;
+    fill: #3465A4;
+}
+
+.chart-upper, .chart-lower {
+    font-size: 10px;
+    text-anchor: end;
+}
+
+.chart-xlabel {
+    font-size: 10px;
+    text-anchor: middle;
+}
+
+.chart-grid {
+    fill: #aaaaaa;
+}
+
+a {
+    color: #3465A4;
+}
+
+#aboveMainLeft {
+    position: fixed;
+    left: 0px;
+    right: 50%;
+    font-size: 12px;
+}
+
+#rangeLabels {
+    padding-left: 35px;
+}
+
+.range-active {
+    text-decoration: none;
+}
+
+#mainLeft {
+    position: fixed;
+    left: 0px;
+    right: 50%;
+    top: 160px;
+    bottom: 0px;
+    overflow: scroll;
+}
+
+#mainLeft, #mainRight {
+    top: 160px;
+}
+#aboveMainLeft {
+    top: 140px;
+    height: 20px;
+}
+
+#mainRight {
+    position: absolute;
+    left: 50%;
+    right: 0px;
+    bottom: 0px;
+    overflow: hidden;
+    z-index: 0;
+}
+
+#mainRight table {
+    font-size: 11px;
+    table-layout: fixed;
+    border-collapse: collapse;
+    margin: 0px;
+    border: 1px solid #888888;
+    background: white;
+}
+
+#mainRight table th {
+    font-weight: normal;
+    color: #444444;
+    overflow: hidden;
+}
+
+#mainRight table td {
+    width: 10em;
+    overflow: hidden;
+    max-width: 10em;
+    text-align: center;
+}
+
+#columnLabelDiv {
+    position: absolute;
+    top: 0px;
+    left: 0px;
+    right: 0px;
+    width: 100%;
+}
+
+#columnLabelTable {
+    position: absolute;
+    background: white;
+    left: 0px;
+    top: 0px;
+}
+
+#rowLabelDiv {
+    position: absolute;
+    top: 0px;
+    left: 0px;
+    height: 100%;
+}
+
+#rowLabelTable {
+    position: absolute;
+    left: 0px;
+    top: 0px;
+    background: white;
+}
+
+#cornerDiv {
+    position: absolute;
+    top: 0px;
+    left: 0px;
+}
+
+#cornerTable {
+    top: 0px;
+    left: 0px;
+    background: white;
+}
+
+#dataTableDiv {
+    position: absolute;
+    top: 0px;
+    left: 0x;
+    width: 100%;
+    height: 100%;
+    overflow: scroll;
+}
+
+#dataTable {
+}
+
+.col-label {
+    border-bottom: 1px solid #888888;
+    min-width: 10em;
+    max-width: 10em;
+}
+
+.row-label {
+    border-right: 1px solid #888888;
+}
+
+#targetDetails {
+    border-collapse: collapse;
+    margin-top: 0.5em;
+}
+
+#targetDetails td, #targetDetails th {
+    padding: 0px 5px;
+}
+
+#targetDetails th {
+    text-align: right;
+    color: #444444;
+}
+
+#targetDetails .target-detail {
+    font-weight: bold;
+}
+
+#homePage #aboveMainLeft {
+    top: 90px;
+}
+
+#homePage #mainLeft, #homePage #mainRight {
+    top: 110px;
+}
+
+#metricPage .chart-div {
+    position: absolute;
+    left: 5px;
+    right: 10px;
+    top: 5px;
+    bottom: 100px;
+}
+
+#metricPage .chart {
+    height: 100%;
+}
+
+#metricPage #mainLeft {
+    overflow: hidden;
+}

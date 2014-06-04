@@ -1,0 +1,17 @@
+# Make this unique, and don't share it with anybody. You can generate
+# it with something like:
+#
+#  head -c 32 /dev/random | python -c 'import sys, base64; data = sys.stdin.read(); print base64.b64encode(data)'
+#
+SECRET_KEY = '<GENERERATED SECRET KEY HERE>'
+
+DATABASES = {
+    'default': {
+        'ENGINE': 'django.db.backends.sqlite3', # Add 'postgresql_psycopg2', 'mysql', 'sqlite3' or 'oracle'.
+        'NAME': 'perf.sql',                      # Or path to database file if using sqlite3.
+        'USER': '',                      # Not used with sqlite3.
+        'PASSWORD': '',                  # Not used with sqlite3.
+        'HOST': '',                      # Set to empty string for localhost. Not used with sqlite3.
+        'PORT': '',                      # Set to empty string for default. Not used with sqlite3.
+    }
+}

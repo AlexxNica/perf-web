@@ -1,0 +1,105 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>GNOME Performance Measurement</title>
+  <link rel="stylesheet"  type="text/css" href="/static/perf.css" />
+  <script type="text/javascript" src="/static/jquery-1.11.1.min.js" ></script>
+  <script type="text/javascript" src="/static/main.js" ></script>
+  <script type="text/javascript">
+    initialize("{{ target.name }}", null, {{ min_time }}, {{ max_time }});
+  </script>
+</head>
+<body id="{{ page_name }}Page">
+  {% include "metrics/header.html" %}
+
+  <div id="topContent">
+    <table id="targetDetails">
+      <tr>
+        <th>Machine</th>
+        <td class="target-detail">{{ machine.name }}</td>
+        <td class="target-extra">{{machine.cpu}} / {{machine.graphics}} / {{machine.memory}}</td>
+      </tr>
+      <tr>
+        <th>Partition</th>
+        <td class="target-detail">{{ partition.short_name }}</td>
+        <td class="target-extra">{{partition.disk}} / {{partition.filesystem}}</td>
+      </tr>
+      <tr>
+        <th>Tree</th>
+        <td class="target-detail">{{ tree.name }}</td>
+        <td class="target-extra">{{ tree.description }} ({{ tree.path }})</td>
+      </tr>
+      <tr>
+        <th>Testset</th>
+        <td class="target-detail">{{ testset.name }}</td>
+        <td class="target-extra">{{ testset.description }}</td>
+      </tr>
+    </table>
+
+  </div>
+
+  <div id="aboveMainLeft">
+    <span id="rangeLabels">
+      <a href="#" onclick="setRange(event, this, 'day');">Day</a>
+      <a href="#" onclick="setRange(event, this, 'week');" class="range-active">Week</a>
+      <a href="#" onclick="setRange(event, this, 'month');">Month</a>
+      <a href="#" onclick="setRange(event, this, 'year');">Year</a>
+    </span>
+  </div>
+  <div id="mainLeft">
+  {% for metric in metrics %}
+    {% include "metrics/chart.html" %}
+  {% endfor %}
+  </div>
+  <div id="mainRight">
+    <div id="dataTableDiv">
+      <table id="dataTable" data-target="{{ target.name }}">
+        <thead>
+          <tr>
+            <th class="col-label row-label"><span>&nbsp;<br />&nbsp;</span></th>
+            {% for metric in metrics %}
+            <th data-metric="{{ metric.name }}" data-metric-units="{{metric.units }}" class="col-label">{{ metric.name }}<br /><span class="metric-unit"></span></th>
+            {% endfor %}
+          </tr>
+        </thead>
+        <tbody>
+        </tbody>
+      </table>
+    </div>
+    <div id="columnLabelDiv">
+      <table id="columnLabelTable">
+        <thead>
+          <tr>
+            <th class="col-label row-label"><span>&nbsp;<br />&nbsp;</span></th>
+            {% for metric in metrics %}
+            <th data-metric="{{ metric.name }}" data-metric-units="{{metric.units }}" class="col-label">{{ metric.name }}<br /><span class="metric-unit"></span></th>
+            {% endfor %}
+          </tr>
+        </thead>
+        <tbody>
+        </tbody>
+      </table>
+    </div>
+    <div id="rowLabelDiv">
+      <table id="rowLabelTable">
+        <thead>
+          <tr>
+            <th class="col-label row-label"><span>&nbsp;<br />&nbsp;</span></th>
+          </tr>
+        </thead>
+        <tbody>
+        </tbody>
+      </table>
+    </div>
+    <div id="cornerDiv">
+      <table id="cornerTable">
+        <thead>
+          <tr>
+            <th class="col-label row-label"><span>&nbsp;<br />&nbsp;</span></th>
+          </tr>
+        </thead>
+      </table>
+    </div>
+  </div>
+</body>
+</html>

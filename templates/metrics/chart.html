@@ -1,0 +1,13 @@
+    <div class="chart-div">
+      <svg data-metric="{{metric.name }}" data-metric-units="{{metric.units }}" class="chart" version="1.1" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink">
+        <a xlink:href="/metric/{{ metric.name }}"><text class="chart-title">{{ metric.name }}</text></a>
+        <g class="chart-y-labels">
+          <text class="chart-upper" />
+          <text class="chart-lower" />
+        </g>
+        <g class="chart-x-labels" />
+        <rect class="chart-background" fill="white" stroke="black"/>
+        <svg class="chart-body">
+        </svg>
+      </svg>
+    </div>

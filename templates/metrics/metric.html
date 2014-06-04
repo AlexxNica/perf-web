@@ -1,0 +1,86 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>GNOME Performance Measurement</title>
+  <link rel="stylesheet"  type="text/css" href="/static/perf.css" />
+  <script type="text/javascript" src="/static/jquery-1.11.1.min.js" ></script>
+  <script type="text/javascript" src="/static/main.js" ></script>
+  <script type="text/javascript">
+    initialize(null, "{{ metric.name }}", {{ min_time }}, {{ max_time }});
+  </script>
+</head>
+<body id="{{ page_name }}Page">
+  {% include "metrics/header.html" %}
+
+  <div id="topContent">
+    <h1>
+      {{ metric.name }}
+    </h1>
+    <div>
+      {{ metric.description }} (<span id="metricUnits">{{ metric.units }}</span>)
+    </div>
+  </div>
+
+  <div id="aboveMainLeft">
+    <span id="rangeLabels">
+      <a href="#" onclick="setRange(event, this, 'day');">Day</a>
+      <a href="#" onclick="setRange(event, this, 'week');" class="range-active">Week</a>
+      <a href="#" onclick="setRange(event, this, 'month');">Month</a>
+      <a href="#" onclick="setRange(event, this, 'year');">Year</a>
+    </span>
+  </div>
+  <div id="mainLeft">
+    {% include "metrics/chart.html" %}
+  </div>
+  <div id="mainRight">
+    <div id="dataTableDiv">
+      <table id="dataTable" data-metric="{{ metric.name }}" data-metric-units="{{metric.units }}">
+        <thead>
+          <tr>
+            <th class="col-label row-label"><span>&nbsp;<br />&nbsp;<br />&nbsp;<br />&nbsp;</span></th>
+            {% for target in targets %}
+            <th data-target="{{ target.name }}" class="col-label">{{ target.partition.machine.name }}<br/>{{ target.partition.short_name }}<br/>{{ target.tree.name }}<br/>{{ target.testset.name }}</th>
+            {% endfor %}
+          </tr>
+        </thead>
+        <tbody>
+        </tbody>
+      </table>
+    </div>
+    <div id="columnLabelDiv">
+      <table id="columnLabelTable">
+        <thead>
+          <tr>
+            <th class="col-label row-label"><span>&nbsp;<br />&nbsp;<br />&nbsp;<br />&nbsp;</span></th>
+            {% for target in targets %}
+            <th data-target="{{ target.name }}" class="col-label">{{ target.partition.machine.name }}<br/>{{ target.partition.short_name }}<br/>{{ target.tree.name }}<br/>{{ target.testset.name }}<br/></th>
+            {% endfor %}
+          </tr>
+        </thead>
+        <tbody>
+        </tbody>
+      </table>
+    </div>
+    <div id="rowLabelDiv">
+      <table id="rowLabelTable">
+        <thead>
+          <tr>
+            <th class="col-label row-label"><span>&nbsp;<br />&nbsp;<br />&nbsp;<br />&nbsp;</span></th>
+          </tr>
+        </thead>
+        <tbody>
+        </tbody>
+      </table>
+    </div>
+    <div id="cornerDiv">
+      <table id="cornerTable">
+        <thead>
+          <tr>
+            <th class="col-label row-label"><span>&nbsp;<br />&nbsp;<br />&nbsp;<br />&nbsp;</span></th>
+          </tr>
+        </thead>
+      </table>
+    </div>
+  </div>
+</body>
+</html>

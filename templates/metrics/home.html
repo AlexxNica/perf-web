@@ -1,0 +1,40 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>GNOME Performance Measurement</title>
+  <link rel="stylesheet"  type="text/css" href="/static/perf.css" />
+  <script type="text/javascript" src="/static/jquery-1.11.1.min.js" ></script>
+  <script type="text/javascript" src="/static/main.js" ></script>
+  <script type="text/javascript">
+    initialize(null, null, {{ min_time }}, {{ max_time }});
+  </script>
+</head>
+<body id="{{ page_name }}Page">
+  {% include "metrics/header.html" %}
+  <div id="topContent">
+  <h1>
+    GNOME Performance Measurement
+  </h1>
+  </div>
+  <div id="aboveMainLeft">
+    <span id="rangeLabels">
+      <a href="#" onclick="setRange(event, this, 'day');">Day</a>
+      <a href="#" onclick="setRange(event, this, 'week');" class="range-active">Week</a>
+      <a href="#" onclick="setRange(event, this, 'month');">Month</a>
+      <a href="#" onclick="setRange(event, this, 'year');">Year</a>
+    </span>
+  </div>
+  <div id="mainLeft">
+  {% for metric in metrics %}
+    {% include "metrics/chart.html" %}
+  {% endfor %}
+  </div>
+  <div id="mainRight">
+    <ul>
+  {% for target in targets %}
+      <li><a href="/target/{{ target.name }}">{{ target.name }}</a></li>
+  {% endfor %}
+    </ul>
+  </div>
+</body>
+</html>
