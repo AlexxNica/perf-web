@@ -42,6 +42,10 @@ ValueBuffer.prototype.merge = function(other) {
         } else  {
             newData[newPos] = other.data[otherPos];
             newData[newPos + 1] = other.data[otherPos + 1];
+            if (this.data[thisPos] == other.data[otherPos]) {
+                thisPos += 2;
+                newLength--;
+            }
             otherPos += 2;
         }
 
