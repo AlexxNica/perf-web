@@ -517,7 +517,7 @@ function Table(element) {
     this.body = $( element ).find( "tbody" );
     this.labelBody = $( "#rowLabelTable" ).find( "tbody" );
     this.rows = [];
-    this.restartSerial = null;
+    this.group = null;
 
     $( "#dataTableDiv" ).scroll(function() {
         $( "#columnLabelTable" ).css("left", - $( this ).scrollLeft() + "px");
@@ -532,29 +532,20 @@ Table.prototype.refresh = function() {
     var minTime = null;
     var maxTime = null;
 
-    if (this.restartSerial != theDisplay.restartSerial) {
+    if (this.group != theDisplay.loadedGroup) {
         $( this.body ).empty();
         $( this.labelBody ).empty();
-    } else {
-        $( this.body ).find("tr").each(function() {
-            if (this.__time < startTime || this.__time > endTime) {
-                this.parentNode.removeChild(this);
-            } else if (minTime == null) {
-                minTime = maxTime = this.__time;
-            } else {
-                minTime = Math.min(this.__time, minTime);
-                maxTime = Math.max(this.__time, maxTime);
-            }
-        });
-        $( this.labelBody ).find("tr").each(function() {
-            if (this.__time < startTime || this.__time > endTime)
-                this.parentNode.removeChild(this);
-        });
     }
 
     var columns = this.prepareColumns();
     var lastInserted = null;
     var lastInsertedLabel = null;
+
+    var position = 0;
+    var body = this.body.get(0);
+    var children = body.children;
+    var labelBody = this.labelBody.get(0);
+    var labelChildren = labelBody.children;
 
     while (true) {
         var firstTime = null;
@@ -570,20 +561,24 @@ Table.prototype.refresh = function() {
         if (firstTime == null)
             break;
 
-        var prepend = false, append = false;
-        if (firstTime >= startTime && firstTime < endTime) {
-            if (minTime != null) {
-                if (firstTime < minTime)
-                    prepend = true;
-                else if (firstTime > maxTime)
-                    append = true;
+        while (position < children.length && children[position].__time < firstTime) {
+            body.removeChild(children[position]);
+            labelBody.removeChild(labelChildren[position]);
+        }
+
+        var insert = firstTime >= startTime && firstTime < endTime;
+
+        if (position < children.length && children[position].__time == firstTime) {
+            if (insert) {
+                insert = false;
+                position++;
             } else {
-                append = true;
+                body.removeChild(children[position]);
+                labelBody.removeChild(labelChildren[position]);
             }
         }
 
-        var row;
-        if (append || prepend) {
+        if (insert) {
             var row = $( '<tr />' );
             row.get(0).__time = firstTime;
 
@@ -597,7 +592,6 @@ Table.prototype.refresh = function() {
             $( '<th />' ).attr('class', 'row-label').text(timeText).appendTo(row);
 
             var labelRow = $( '<tr />' );
-            labelRow.get(0).__time = firstTime;
             $( '<th />' ).attr('class', 'row-label').text(timeText).appendTo(labelRow);
 
             for (var i = 0; i < columns.length; i++) {
@@ -621,6 +615,10 @@ Table.prototype.refresh = function() {
                 $( '<td />' ).text(column.formatFunction(value)).appendTo(row);
                 column.position++;
             }
+
+            body.insertBefore(row.get(0), children[position]);
+            labelBody.insertBefore(labelRow.get(0), labelChildren[position]);
+            position++;
         } else {
             for (var i = 0; i < columns.length; i++) {
                 var column = columns[i];
@@ -631,25 +629,15 @@ Table.prototype.refresh = function() {
                 }
             }
         }
-
-        if (prepend) {
-            if (lastInserted == null) {
-                row.prependTo(this.body);
-                labelRow.prependTo(this.labelBody);
-            } else {
-                row.insertAfter(lastInserted);
-                labelRow.insertAfter(lastInsertedLabel);
-            }
-            lastInserted = row;
-            lastInsertedLabel = labelRow;
-        } else if (append) {
-            row.appendTo(this.body);
-            labelRow.appendTo(this.labelBody);
-        }
-
     }
 
-    this.restartSerial = theDisplay.restartSerial;
+    while (position < children.length) {
+        body.removeChild(children[position]);
+        labelBody.removeChild(labelChildren[position]);
+        position++;
+    }
+
+    this.group = theDisplay.loadedGroup;
 };
 
 ////////////////////////////////////////////////////////////////////////
@@ -861,10 +849,6 @@ function PerfDisplay(target, metric, dataMinTime, dataMaxTime, centerTime, range
     this.loadedGroup = null;
     this.loadedRanges = new TimeRanges();
 
-    // This tracks whether new data is a pure append or prepend to existing data; every
-    // time data is loaded and that is not true, it is incremented
-    this.restartSerial = 0;
-
     this.setPositionAndRange(centerTime, rangeType, false);
     $(window).load(this.onWindowLoaded.bind(this));
 }
@@ -1039,19 +1023,6 @@ PerfDisplay.prototype._loadRange = function(group, start, end) {
                       this.data = {};
                       this.loadedRanges = new TimeRanges();
                       this.loadedGroup = group;
-                      // Not a prepend or append to existing data
-                      this.restartSerial++;
-                  }
-
-                  if (this.loadedRanges.ranges.length > 0) {
-                      var firstRange = this.loadedRanges.ranges[0];
-                      var lastRange = this.loadedRanges.ranges[this.loadedRanges.ranges.length - 1];
-                      if (!((start <= firstRange.end && end <= firstRange.end) ||
-                            (start >= lastRange.start && end >= lastRange.start)))
-                      {
-                          // Not a prepend or append to existing data
-                          this.restartSerial++;
-                      }
                   }
 
                   this.loadedRanges.add(start, end);
