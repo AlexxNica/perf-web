@@ -842,8 +842,7 @@ var TIME_OFFSETS = {
     'month': 15.2 * 24 * 60 * 60
 }
 
-function formatDay(seconds) {
-    var date = new Date(seconds * 1000);
+function formatDay(date) {
     return date.getUTCFullYear() + '-' + pad(date.getUTCMonth() + 1) + '-' + pad(date.getUTCDate());
 }
 
@@ -884,7 +883,38 @@ PerfDisplay.prototype.load = function() {
         }
     }
 
-    var url = '/api/values?start=' + formatDay(startSeconds) + '&end=' + formatDay(endSeconds) + '&group=' + group;
+    // API is day => day, inclusive, and retrieves all summaries that
+    // overlap that range of days; we round our retrieved range to
+    // summary boundaries so that the "all overlapping" doesn't
+    // affect the retrieved range
+
+    // Find the half-open day range
+    var startDate = new Date(startSeconds * 1000);
+    TIME_OPS['day'].truncate(startDate);
+    var endDate = new Date(endSeconds * 1000);
+    TIME_OPS['day'].truncate(endDate);
+    if (endDate.getTime() != endSeconds * 1000)
+        TIME_OPS['day'].next(endDate);
+
+    if (startDate.getTime() == endDate.getTime()) // Empty day range
+        return;
+
+    // Round to summary boundaries
+    if (group != 'none') {
+        TIME_OPS[group].truncate(startDate);
+        var tmp = endDate.getTime();
+        TIME_OPS[group].truncate(endDate);
+        if (tmp != endDate.getTime())
+            TIME_OPS[group].next(endDate);
+    }
+
+    startSeconds = startDate.getTime() / 1000;
+    endSeconds = endDate.getTime() / 1000;
+
+    // Now make the day-range closed, as the API requires
+    endDate.setTime(endDate.getTime() - DAY_MSECS);
+
+    var url = '/api/values?start=' + formatDay(startDate) + '&end=' + formatDay(endDate) + '&group=' + group;
     if (this.target != null)
         url += '&target=' + encodeURIComponent(this.target);
     if (this.metric != null)
@@ -892,23 +922,6 @@ PerfDisplay.prototype.load = function() {
     $.getJSON(url,
               function(data) {
                   var timeOffset = TIME_OFFSETS[group];
-
-                  var startDate = new Date(startSeconds * 1000);
-                  TIME_OPS['day'].truncate(startDate);
-                  var endDate = new Date(endSeconds * 1000);
-                  TIME_OPS['day'].truncate(endDate);
-                  TIME_OPS['day'].next(endDate);
-
-                  if (group != 'none') {
-                      TIME_OPS[group].truncate(startDate);
-                      var tmp = endDate.getTime();
-                      TIME_OPS[group].truncate(endDate);
-                      if (tmp != endDate.getTime())
-                          TIME_OPS[group].next(endDate);
-                  }
-
-                  startSeconds = startDate.getTime() / 1000;
-                  endSeconds = endDate.getTime() / 1000;
 
                   if (group != this.loadedGroup) {
                       this.data = {};
