@@ -169,7 +169,7 @@ class Summary(models.Model):
                           avg_value=(total_value/total_count),
                           count=total_count)
             if append_unsaved is not None:
-                append_unsaved.append(p)
+                append_unsaved.append(summary)
             else:
                 summary.save()
 
