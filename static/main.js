@@ -974,6 +974,9 @@ PerfDisplay.prototype.load = function() {
 }
 
 PerfDisplay.prototype.onWindowLoaded = function() {
+    if (this.windowLoaded)
+        return;
+
     this.windowLoaded = true;
 
     $( ".chart" ).each(function() {
