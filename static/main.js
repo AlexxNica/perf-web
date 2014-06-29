@@ -1007,7 +1007,7 @@ PerfDisplay.prototype.onWindowLoaded = function() {
 
 function setRange(e, a, rangeType) {
     e.preventDefault();
-    $( "#headerLeft a" ).removeClass('range-active');
+    $( "#aboveMainLeft a" ).removeClass('range-active');
     $( a ).addClass('range-active');
 
     theDisplay.setPositionAndRange(theDisplay.centerTime, rangeType, false);
