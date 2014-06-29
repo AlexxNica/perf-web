@@ -742,6 +742,7 @@ TargetTable.prototype.prepareColumns = function() {
 
     var columns = [];
 
+    var displayUnits;
     this.head.find( "th" ).each(function(index, element) {
         if (!element.hasAttribute('data-target'))
             return;
@@ -751,14 +752,14 @@ TargetTable.prototype.prepareColumns = function() {
             var values = metricData[target];
             var column = new TableColumn(values);
             column.prepareRange(min, max, units);
-            units = column.units;
+            displayUnits = column.units;
             columns.push(column);
         } else {
             columns.push(null);
         }
     });
 
-    $( '#metricUnits' ).text(units);
+    $( '#metricUnits' ).text(displayUnits);
 
     return columns;
 }
