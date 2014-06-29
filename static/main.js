@@ -765,6 +765,91 @@ TargetTable.prototype.prepareColumns = function() {
 }
 
 ////////////////////////////////////////////////////////////////////////
+// Arithmetic on a list of half-open intervals. Simplicity of implementation
+// was favored in writing this over performance
+////////////////////////////////////////////////////////////////////////
+
+function TimeRanges() {
+    this.ranges = [];
+}
+
+TimeRanges.prototype.add = function(start, end) {
+    this.subtract(start, end);
+
+    var toInsert = {
+        start: start,
+        end: end
+    };
+    for (var i = 0; i < this.ranges.length; i++) {
+        if (start < this.ranges[i].start) {
+            this.ranges.splice(i, 0, toInsert);
+            toInsert = null;
+            break;
+        }
+    }
+
+    if (toInsert)
+        this.ranges.push(toInsert);
+
+    for (var i = 1; i < this.ranges.length; i++) {
+        if (this.ranges[i].start == this.ranges[i - 1].end) {
+            this.ranges[i - 1].end = this.ranges[i].end;
+            this.ranges.splice(i, 1);
+            i--;
+        }
+    }
+}
+
+TimeRanges.prototype.addRanges = function(other) {
+    for (var i = 0; i < other.ranges.length; i++)
+        this.add(other.ranges[i].start, other.ranges[i].end);
+}
+
+TimeRanges.prototype.subtract = function(start, end) {
+    for (var i = 0; i < this.ranges.length; i++) {
+        var range = this.ranges[i];
+        if (end > range.start && start < range.end) {
+            if (start <= range.start) {
+                range.start = Math.min(range.end, end);
+                if (range.start == range.end) {
+                    this.ranges.splice(i, 1);
+                    i--;
+                }
+            } else if (end >= range.end) {
+                range.end = start;
+            } else {
+                this.ranges.splice(i + 1, 0,
+                                   {
+                                       start: end,
+                                       end: range.end
+                                   });
+                range.end = start;
+                i++;
+            }
+        }
+    }
+}
+
+TimeRanges.prototype.subtractRanges = function(other) {
+    for (var i = 0; i < other.ranges.length; i++)
+        this.subtract(other.ranges[i].start, other.ranges[i].end);
+}
+
+TimeRanges.prototype.isEmpty = function() {
+    return this.ranges.length == 0;
+}
+
+TimeRanges.prototype.toString = function() {
+    var result = '';
+    for (var i = 0; i < this.ranges.length; i++) {
+        if (result.length > 0)
+            result += ' ';
+        result += '[' + this.ranges[i].start + ',' + this.ranges[i].end + ')';
+    }
+    return result;
+}
+
+////////////////////////////////////////////////////////////////////////
 
 function PerfDisplay(target, metric, dataMinTime, dataMaxTime, centerTime, rangeType) {
     this.target = target;
@@ -779,9 +864,10 @@ function PerfDisplay(target, metric, dataMinTime, dataMaxTime, centerTime, range
     this.allTargetsSorted = [];
 
     this.windowLoaded = false;
+
+    this.pendingLoads = [];
     this.loadedGroup = null;
-    this.loadedStartSeconds = null;
-    this.loadedEndSeconds = null;
+    this.loadedRanges = new TimeRanges();
 
     this.setPositionAndRange(centerTime, rangeType, false);
     $(window).load(this.onWindowLoaded.bind(this));
@@ -870,25 +956,12 @@ PerfDisplay.prototype.load = function() {
     if (endSeconds <= startSeconds)
         return;
 
-    if (group == this.loadedGroup) {
-        // Or for data that we already have
-        if (startSeconds >= this.loadedStartSeconds) {
-            startSeconds = Math.max(startSeconds, this.loadedEndSeconds);
-            if (startSeconds >= endSeconds)
-                return;
-        } else if (endSeconds <= this.loadedEndSeconds) {
-            endSeconds = Math.min(endSeconds, this.loadedStartSeconds);
-            if (endSeconds <= startSeconds)
-                return;
-        }
-    }
-
-    // API is day => day, inclusive, and retrieves all summaries that
+    // API is in terms of days, retrieves all summaries that
     // overlap that range of days; we round our retrieved range to
-    // summary boundaries so that the "all overlapping" doesn't
+    // the boundaries of the API so that the "all overlapping" doesn't
     // affect the retrieved range
 
-    // Find the half-open day range
+    // Find the day range
     var startDate = new Date(startSeconds * 1000);
     TIME_OPS['day'].truncate(startDate);
     var endDate = new Date(endSeconds * 1000);
@@ -908,10 +981,38 @@ PerfDisplay.prototype.load = function() {
             TIME_OPS[group].next(endDate);
     }
 
-    startSeconds = startDate.getTime() / 1000;
-    endSeconds = endDate.getTime() / 1000;
+    var timeRanges = new TimeRanges();
+    timeRanges.add(startDate.getTime() / 1000, endDate.getTime() / 1000);
 
-    // Now make the day-range closed, as the API requires
+    var i;
+    var groupChanged = false;
+
+    // Now remove data that we are loading
+    for (i = this.pendingLoads.length - 1; i >= 0; i--) {
+        if (this.pendingLoads[i].group != group) {
+            groupChanged = true;
+            break;
+        }
+        timeRanges.subtract(this.pendingLoads[i].start, this.pendingLoads[i].end);
+    }
+
+    // And data we already have
+    if (!groupChanged && this.loadedGroup == group)
+        timeRanges.subtractRanges(this.loadedRanges);
+
+    for (var i = 0; i < timeRanges.ranges.length; i++) {
+        var range = timeRanges.ranges[i];
+        this._loadRange(group, range.start, range.end);
+    }
+}
+
+PerfDisplay.prototype._loadRange = function(group, start, end) {
+    var startDate = new Date(start * 1000);
+    TIME_OPS['day'].truncate(startDate);
+    var endDate = new Date(end * 1000);
+    TIME_OPS['day'].truncate(endDate);
+
+    // Make the day-range closed, as the API requires
     endDate.setTime(endDate.getTime() - DAY_MSECS);
 
     var url = '/api/values?start=' + formatDay(startDate) + '&end=' + formatDay(endDate) + '&group=' + group;
@@ -919,19 +1020,32 @@ PerfDisplay.prototype.load = function() {
         url += '&target=' + encodeURIComponent(this.target);
     if (this.metric != null)
         url += '&metric=' + encodeURIComponent(this.metric);
-    $.getJSON(url,
+
+    var loadInfo = {
+        group: group,
+        start: start,
+        end: end,
+    };
+
+    this.pendingLoads.push(loadInfo);
+
+    $.ajax({datatype: "json",
+            url: url,
+            success:
               function(data) {
+                  var addedData = false;
+
+                  this.pendingLoads.splice(this.pendingLoads.indexOf(loadInfo), 1);
+
                   var timeOffset = TIME_OFFSETS[group];
 
                   if (group != this.loadedGroup) {
                       this.data = {};
-                      this.loadedStartSeconds = startSeconds;
-                      this.loadedEndSeconds = endSeconds;
-                  } else {
-                      this.loadedStartSeconds = Math.min(startSeconds, this.loadedStartSeconds);
-                      this.loadedEndSeconds = Math.max(endSeconds, this.loadedEndSeconds);
+                      this.loadedRanges = new TimeRanges();
+                      this.loadedGroup = group;
                   }
-                  this.loadedGroup = group;
+
+                  this.loadedRanges.add(start, end);
 
                   for (var i = 0; i < data.length; i++) {
                       var metricData = data[i];
@@ -942,6 +1056,12 @@ PerfDisplay.prototype.load = function() {
                           var targetData = metricData.targets[j];
 
                           var valuesData = targetData.values;
+
+                          if (valuesData.length > 0)
+                              addedData = true;
+                          else
+                              continue;
+
                           var values = new ValueBuffer(valuesData.length);
                           if (group == 'none') {
                               for (var k = 0; k < valuesData.length; k++) {
@@ -964,13 +1084,20 @@ PerfDisplay.prototype.load = function() {
                       }
                   }
 
+                  if (!addedData)
+                      return;
+
                   this.allTargetsSorted = [];
                   for (var target in this.allTargets)
                       theDisplay.allTargetsSorted.push(target);
                   this.allTargetsSorted.sort();
 
                   this.refresh();
-              }.bind(this));
+              }.bind(this),
+            error:
+              function() {
+                  this.pendingLoads.splice(this.pendingLoads.indexOf(loadInfo), 1);
+             }});
 }
 
 PerfDisplay.prototype.onWindowLoaded = function() {
@@ -1006,7 +1133,7 @@ PerfDisplay.prototype.onWindowLoaded = function() {
         this.refresh();
     }.bind(this));
 
-    if (this.loadedStartSeconds != null)
+    if (!this.loadedRanges.isEmpty())
         this.refresh();
 }
 
