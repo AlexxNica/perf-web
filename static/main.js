@@ -517,9 +517,7 @@ function Table(element) {
     this.body = $( element ).find( "tbody" );
     this.labelBody = $( "#rowLabelTable" ).find( "tbody" );
     this.rows = [];
-    this.startTime = null;
-    this.endTime = null;
-    this.group = null;
+    this.restartSerial = null;
 
     $( "#dataTableDiv" ).scroll(function() {
         $( "#columnLabelTable" ).css("left", - $( this ).scrollLeft() + "px");
@@ -531,31 +529,27 @@ Table.prototype.refresh = function() {
     var startTime = theDisplay.startSeconds;
     var endTime = theDisplay.endSeconds;
 
-    if (this.group != theDisplay.loadedGroup) {
+    var minTime = null;
+    var maxTime = null;
+
+    if (this.restartSerial != theDisplay.restartSerial) {
         $( this.body ).empty();
         $( this.labelBody ).empty();
-        this.startTime = null;
-        this.endTime = null;
     } else {
-        if (this.startTime != null) {
-            this.startTime = Math.max(this.startTime, startTime);
-            this.endTime = Math.min(this.endTime, endTime);
-            if (this.startTime >= this.endTime) {
-                this.startTime = null;
-                this.endTime = null;
-            }
-        }
-
         $( this.body ).find("tr").each(function() {
             if (this.__time < startTime || this.__time > endTime) {
                 this.parentNode.removeChild(this);
+            } else if (minTime == null) {
+                minTime = maxTime = this.__time;
+            } else {
+                minTime = Math.min(this.__time, minTime);
+                maxTime = Math.max(this.__time, maxTime);
             }
         });
         $( this.labelBody ).find("tr").each(function() {
             if (this.__time < startTime || this.__time > endTime)
                 this.parentNode.removeChild(this);
         });
-
     }
 
     var columns = this.prepareColumns();
@@ -578,10 +572,10 @@ Table.prototype.refresh = function() {
 
         var prepend = false, append = false;
         if (firstTime >= startTime && firstTime < endTime) {
-            if (this.startTime != null) {
-                if (firstTime < this.startTime)
+            if (minTime != null) {
+                if (firstTime < minTime)
                     prepend = true;
-                else if (firstTime >= this.endTime)
+                else if (firstTime > maxTime)
                     append = true;
             } else {
                 append = true;
@@ -655,9 +649,7 @@ Table.prototype.refresh = function() {
 
     }
 
-    this.group = theDisplay.loadedGroup;
-    this.startTime = startTime;
-    this.endTime = endTime;
+    this.restartSerial = theDisplay.restartSerial;
 };
 
 ////////////////////////////////////////////////////////////////////////
@@ -869,6 +861,10 @@ function PerfDisplay(target, metric, dataMinTime, dataMaxTime, centerTime, range
     this.loadedGroup = null;
     this.loadedRanges = new TimeRanges();
 
+    // This tracks whether new data is a pure append or prepend to existing data; every
+    // time data is loaded and that is not true, it is incremented
+    this.restartSerial = 0;
+
     this.setPositionAndRange(centerTime, rangeType, false);
     $(window).load(this.onWindowLoaded.bind(this));
 }
@@ -1043,6 +1039,19 @@ PerfDisplay.prototype._loadRange = function(group, start, end) {
                       this.data = {};
                       this.loadedRanges = new TimeRanges();
                       this.loadedGroup = group;
+                      // Not a prepend or append to existing data
+                      this.restartSerial++;
+                  }
+
+                  if (this.loadedRanges.ranges.length > 0) {
+                      var firstRange = this.loadedRanges.ranges[0];
+                      var lastRange = this.loadedRanges.ranges[this.loadedRanges.ranges.length - 1];
+                      if (!((start <= firstRange.end && end <= firstRange.end) ||
+                            (start >= lastRange.start && end >= lastRange.start)))
+                      {
+                          // Not a prepend or append to existing data
+                          this.restartSerial++;
+                      }
                   }
 
                   this.loadedRanges.add(start, end);
