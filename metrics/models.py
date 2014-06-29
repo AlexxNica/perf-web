@@ -38,7 +38,7 @@ class Value(models.Model):
 def resummarize():
     # We give machines a 6 hours grace period to update results
     now = datetime.utcnow()
-    cutoff = now - timedelta(hours6)
+    cutoff = now - timedelta(hours=6)
 
     SummaryHour6.save_summaries(cutoff)
     SummaryDay.save_summaries(cutoff)
@@ -145,7 +145,7 @@ class Summary(models.Model):
                     if append_unsaved is not None:
                         append_unsaved.append(summary)
                     else:
-                        p.save()
+                        summary.save()
 
                 total_min_value = min_value
                 total_max_value = max_value
@@ -161,17 +161,17 @@ class Summary(models.Model):
                 total_count += count
 
         if total_count > 0:
-            p = cls(time=last_truncated,
-                    target=last_target,
-                    metric=last_metric,
-                    min_value=total_min_value,
-                    max_value=total_max_value,
-                    avg_value=(total_value/total_count),
-                    count=total_count)
+            summary = cls(time=last_truncated,
+                          target=last_target,
+                          metric=last_metric,
+                          min_value=total_min_value,
+                          max_value=total_max_value,
+                          avg_value=(total_value/total_count),
+                          count=total_count)
             if append_unsaved is not None:
                 append_unsaved.append(p)
             else:
-                p.save()
+                summary.save()
 
     @staticmethod
     def filter_and_order(qs, start=None, end=None, metric=None, target=None):
