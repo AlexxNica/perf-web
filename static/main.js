@@ -999,6 +999,10 @@ PerfDisplay.prototype.onWindowLoaded = function() {
                                  true);
     }.bind(this));
 
+    $( window ).resize(function() {
+        this.refresh();
+    }.bind(this));
+
     if (this.loadedStartSeconds != null)
         this.refresh();
 }
