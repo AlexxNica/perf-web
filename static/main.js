@@ -235,7 +235,7 @@ TIME_OPS = {
             date.setUTCMinutes(0);
             date.setUTCSeconds(0);
             date.setUTCMilliseconds(0);
-            date.setTime(date.getTime() - ((date.getUTCDay() + 8) % 7) * DAY_MSECS);
+            date.setTime(date.getTime() - ((date.getUTCDay() + 6) % 7) * DAY_MSECS);
         },
         next: function(date) {
             date.setTime(date.getTime() + WEEK_MSECS);
