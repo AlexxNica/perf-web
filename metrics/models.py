@@ -85,7 +85,12 @@ class Summary(models.Model):
 
         result = list(qs)
 
-        cls._do_summarize(start=cls.last_summary_end(),
+        if start_truncated is not None:
+            last_summary_end = cls.last_summary_end()
+            if last_summary_end is not None:
+                start_truncated = max(start_truncated, last_summary_end)
+
+        cls._do_summarize(start=start_truncated,
                           end=end_truncated,
                           target=target,
                           metric=metric,
