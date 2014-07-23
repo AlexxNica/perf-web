@@ -219,7 +219,7 @@ def values(request):
                 last_target = target_name
 
             target_data['values'].append({
-                'time': unix-time(summary.time),
+                'time': unix_time(summary.time),
                 'avg': summary.avg_value,
                 'min': summary.min_value,
                 'max': summary.max_value,
