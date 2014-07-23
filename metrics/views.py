@@ -54,6 +54,8 @@ def metric(request, metric_name):
     t = loader.get_template('metrics/metric.html')
     time_range = Report.objects \
                    .aggregate(min=Min('pull_time'), max=Max('pull_time'));
+    if time_range['min'] is None:
+        time_range['min'] = time_range['max'] = datetime.now()
 
     c = Context({
         'page_name': 'metric',
@@ -75,6 +77,8 @@ def target(request, machine_name, partition_name, tree_name, testset_name):
     time_range = Report.objects \
                    .filter(target__name=target.name) \
                    .aggregate(min=Min('pull_time'), max=Max('pull_time'));
+    if time_range['min'] is None:
+        time_range['min'] = time_range['max'] = datetime.now()
 
     c = Context({
         'page_name': 'target',
