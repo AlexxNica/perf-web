@@ -858,6 +858,7 @@ function PerfDisplay(target, metric, dataMinTime, dataMaxTime, centerTime, range
 }
 
 PerfDisplay.prototype.setPositionAndRange = function(centerTime, rangeType, clampCenter) {
+    var rangeTypeChanged = (this.rangeType != rangeType);
     this.rangeType = rangeType;
 
     switch (rangeType) {
@@ -891,6 +892,8 @@ PerfDisplay.prototype.setPositionAndRange = function(centerTime, rangeType, clam
 
     this.load();
     this.refresh();
+    if (rangeTypeChanged)
+        history.replaceState(null, null, "?r=" + rangeType);
 }
 
 PerfDisplay.prototype.refresh = function() {
@@ -1085,6 +1088,9 @@ PerfDisplay.prototype._loadRange = function(group, start, end) {
 }
 
 PerfDisplay.prototype.onWindowLoaded = function() {
+    $( "#aboveMainLeft a" ).removeClass('range-active');
+    $( "#" + this.rangeType + "Link" ).addClass('range-active');
+
     if (this.windowLoaded)
         return;
 
@@ -1131,6 +1137,28 @@ function setRange(e, a, rangeType) {
     theDisplay.setPositionAndRange(theDisplay.centerTime, rangeType, false);
 }
 
+function getQueryParams() {
+    var query = window.location.search.substring(1);
+    if (query == null || query == "")
+        return {};
+
+    var components = query.split(/&/);
+
+    var params = {};
+    var i;
+    for (i = 0; i < components.length; i++) {
+        var component = components[i];
+        var m = component.match(/([^=]+)=(.*)/);
+        if (m)
+            params[m[1]] = decodeURIComponent(m[2]);
+    }
+
+    return params;
+}
+
 function initialize(target, metric, dataMinTime, dataMaxTime) {
-    theDisplay = new PerfDisplay(target, metric, dataMinTime, dataMaxTime, Date.now() / 1000, 'week');
+    var params = getQueryParams();
+    var rangeType = ('r' in params) ? params['r'] : 'week';
+
+    theDisplay = new PerfDisplay(target, metric, dataMinTime, dataMaxTime, Date.now() / 1000, rangeType);
 }
