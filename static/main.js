@@ -1087,9 +1087,16 @@ PerfDisplay.prototype._loadRange = function(group, start, end) {
              }});
 }
 
-PerfDisplay.prototype.onWindowLoaded = function() {
+PerfDisplay.prototype.updateElementsForRange = function() {
+    var rangeType = this.rangeType;
+
     $( "#aboveMainLeft a" ).removeClass('range-active');
-    $( "#" + this.rangeType + "Link" ).addClass('range-active');
+    $( "#" + rangeType + "Link" ).addClass('range-active');
+}
+
+
+PerfDisplay.prototype.onWindowLoaded = function() {
+    this.updateElementsForRange();
 
     if (this.windowLoaded)
         return;
@@ -1131,10 +1138,9 @@ PerfDisplay.prototype.onWindowLoaded = function() {
 
 function setRange(e, a, rangeType) {
     e.preventDefault();
-    $( "#aboveMainLeft a" ).removeClass('range-active');
-    $( a ).addClass('range-active');
 
     theDisplay.setPositionAndRange(theDisplay.centerTime, rangeType, false);
+    theDisplay.updateElementsForRange();
 }
 
 function getQueryParams() {
