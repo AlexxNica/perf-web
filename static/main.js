@@ -1103,6 +1103,17 @@ PerfDisplay.prototype.onWindowLoaded = function() {
 
     this.windowLoaded = true;
 
+    $( "a" ).click(function(e) {
+        var href = this.getAttribute("href");
+        if (href == null)
+            href = this.getAttributeNS("http://www.w3.org/1999/xlink", "href");
+        if (href && href.indexOf("/") == 0) {
+            href = href.replace(/(\?.*|$)/, "?r=" + theDisplay.rangeType + "&c=" + theDisplay.centerTime);
+            e.preventDefault();
+            window.open(href, "_self");
+        }
+    });
+
     $( ".chart" ).each(function() {
         theDisplay.charts.push(new Chart(this));
     });
@@ -1165,6 +1176,7 @@ function getQueryParams() {
 function initialize(target, metric, dataMinTime, dataMaxTime) {
     var params = getQueryParams();
     var rangeType = ('r' in params) ? params['r'] : 'week';
+    var centerTime = ('c' in params) ? Number(params['c']) : Date.now() / 1000;
 
-    theDisplay = new PerfDisplay(target, metric, dataMinTime, dataMaxTime, Date.now() / 1000, rangeType);
+    theDisplay = new PerfDisplay(target, metric, dataMinTime, dataMaxTime, centerTime, rangeType);
 }
