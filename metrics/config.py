@@ -68,12 +68,15 @@ class Configuration:
         self._load_file('testsets.conf')
         self._load_file('metrics.conf')
         machinedir = os.path.join(settings.CONFIG_ROOT, 'machines')
-        for f in os.listdir(machinedir):
-            if f.endswith('.conf'):
-                self._load_file(os.path.join('machines', f))
+        if os.path.exists(machinedir):
+            for f in os.listdir(machinedir):
+                if f.endswith('.conf'):
+                    self._load_file(os.path.join('machines', f))
 
         # Error messages are confusing if we don't validate in order
         for cls in ['Partition', 'Target']:
+            if not cls in self.objects:
+                continue
             objs = self.objects[cls]
             bad_names = []
             for name in objs:
