@@ -30,6 +30,8 @@ def home(request):
     t = loader.get_template('metrics/home.html')
 
     time_range = Report.objects.aggregate(min=Min('pull_time'), max=Max('pull_time'));
+    if time_range['min'] is None:
+        time_range['min'] = time_range['max'] = datetime.now()
 
     c = Context({
         'page_name': 'home',
