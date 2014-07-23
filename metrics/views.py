@@ -20,7 +20,7 @@ _EPOCH = datetime(1970, 1, 1)
 # timedelta.total_seconds added in 2.7
 if hasattr(timedelta, 'total_seconds'):
     def unix_time(dt):
-        total_seconds(dt - _EPOCH)
+        return (dt - _EPOCH).total_seconds()
 else:
     def unix_time(dt):
         td = dt - _EPOCH
