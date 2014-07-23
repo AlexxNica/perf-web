@@ -17,6 +17,15 @@ from signed_request import check_signature, BadSignature
 
 _EPOCH = datetime(1970, 1, 1)
 
+# timedelta.total_seconds added in 2.7
+if hasattr(timedelta, 'total_seconds'):
+    def unix_time(dt):
+        total_seconds(dt - _EPOCH)
+else:
+    def unix_time(dt):
+        td = dt - _EPOCH
+        return float(td.microseconds + (td.seconds + td.days * 24 * 3600) * 10**6) / 10**6
+
 def home(request):
     t = loader.get_template('metrics/home.html')
 
@@ -25,8 +34,8 @@ def home(request):
     c = Context({
         'page_name': 'home',
         'metrics': config.Metric.all(),
-        'min_time': (time_range['min'] - _EPOCH).total_seconds(),
-        'max_time': (time_range['max'] - _EPOCH).total_seconds(),
+        'min_time': unix_time(time_range['min']),
+        'max_time': unix_time(time_range['max']),
         'targets': config.Target.all()
     })
     return HttpResponse(t.render(c))
@@ -47,8 +56,8 @@ def metric(request, metric_name):
     c = Context({
         'page_name': 'metric',
         'metric': metric,
-        'min_time': (time_range['min'] - _EPOCH).total_seconds(),
-        'max_time': (time_range['max'] - _EPOCH).total_seconds(),
+        'min_time': unix_time(time_range['min']),
+        'max_time': unix_time(time_range['max']),
         'targets': config.Target.all()
     })
     return HttpResponse(t.render(c))
@@ -73,8 +82,8 @@ def target(request, machine_name, partition_name, tree_name, testset_name):
         'tree': target.tree,
         'testset': target.testset,
         'metrics': config.Metric.all(),
-        'min_time': (time_range['min'] - _EPOCH).total_seconds(),
-        'max_time': (time_range['max'] - _EPOCH).total_seconds(),
+        'min_time': unix_time(time_range['min']),
+        'max_time': unix_time(time_range['max']),
         'targets': config.Target.all()
     })
     return HttpResponse(t.render(c))
@@ -173,7 +182,7 @@ def values(request):
                 last_target = target_name
 
             target_data['values'].append({
-                'time': (value.report.pull_time - _EPOCH).total_seconds(),
+                'time': unix_time(value.report.pull_time),
                 'value': value.value
             })
     else:
@@ -204,7 +213,7 @@ def values(request):
                 last_target = target_name
 
             target_data['values'].append({
-                'time': (summary.time - _EPOCH).total_seconds(),
+                'time': unix-time(summary.time),
                 'avg': summary.avg_value,
                 'min': summary.min_value,
                 'max': summary.max_value,
