@@ -1,5 +1,6 @@
 from datetime import datetime, timedelta
 from django.db import models
+from django.utils import timezone
 import sys
 
 class Metric(models.Model):
@@ -37,7 +38,7 @@ class Value(models.Model):
 
 def resummarize():
     # We give machines a 6 hours grace period to update results
-    now = datetime.utcnow()
+    now = timezone.now()
     cutoff = now - timedelta(hours=6)
 
     SummaryHour6.save_summaries(cutoff)

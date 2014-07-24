@@ -8,6 +8,7 @@ from django.conf import settings
 from django.db.models import Min, Max
 from django.template import Context, loader
 from django.http import HttpResponse, HttpResponseNotFound, HttpResponseBadRequest
+from django.utils import timezone
 from django.views.decorators.http import require_POST
 from django.views.decorators.csrf import csrf_exempt
 
@@ -15,7 +16,7 @@ import config
 from models import *
 from signed_request import check_signature, BadSignature
 
-_EPOCH = datetime(1970, 1, 1)
+_EPOCH = datetime(1970, 1, 1, tzinfo=timezone.utc)
 
 # timedelta.total_seconds added in 2.7
 if hasattr(timedelta, 'total_seconds'):
@@ -31,7 +32,7 @@ def home(request):
 
     time_range = Report.objects.aggregate(min=Min('pull_time'), max=Max('pull_time'));
     if time_range['min'] is None:
-        time_range['min'] = time_range['max'] = datetime.now()
+        time_range['min'] = time_range['max'] = timezone.now()
 
     c = Context({
         'page_name': 'home',
@@ -55,7 +56,7 @@ def metric(request, metric_name):
     time_range = Report.objects \
                    .aggregate(min=Min('pull_time'), max=Max('pull_time'));
     if time_range['min'] is None:
-        time_range['min'] = time_range['max'] = datetime.now()
+        time_range['min'] = time_range['max'] = timezone.now()
 
     c = Context({
         'page_name': 'metric',
@@ -78,7 +79,7 @@ def target(request, machine_name, partition_name, tree_name, testset_name):
                    .filter(target__name=target.name) \
                    .aggregate(min=Min('pull_time'), max=Max('pull_time'));
     if time_range['min'] is None:
-        time_range['min'] = time_range['max'] = datetime.now()
+        time_range['min'] = time_range['max'] = timezone.now()
 
     c = Context({
         'page_name': 'target',
@@ -125,7 +126,7 @@ def values(request):
         m = re.match(r'(\d\d\d\d)-(\d\d)-(\d\d)$', start_str)
         if m is not None:
             try:
-                start = datetime(int(m.group(1)), int(m.group(2)), int(m.group(3)))
+                start = datetime(int(m.group(1)), int(m.group(2)), int(m.group(3)), tzinfo=timezone.utc)
             except ValueError:
                 pass
         if start is None:
@@ -137,7 +138,7 @@ def values(request):
         m = re.match(r'(\d\d\d\d)-(\d\d)-(\d\d)$', end_str)
         if m is not None:
             try:
-                end = datetime(int(m.group(1)), int(m.group(2)), int(m.group(3))) + timedelta(hours=24)
+                end = datetime(int(m.group(1)), int(m.group(2)), int(m.group(3)), tzinfo=timezone.utc) + timedelta(hours=24)
             except ValueError:
                 pass
         if end is None:
@@ -330,6 +331,7 @@ def process_report(data, machine_name):
     pull_time_str = child_string(data, 'pullTime')
     try:
         pull_time = datetime.strptime(pull_time_str, '%Y-%m-%d %H:%M:%S')
+        pull_time.replace(tzinfo=timezone.utc)
     except ValueError:
         raise ValidationError("Can't parse property 'pullTime'")
 
