@@ -511,6 +511,88 @@ TableColumn.prototype.prepareRange = function(min, max, units) {
 
 ////////////////////////////////////////////////////////////////////////
 
+function ScrollHandler(params)
+{
+    this.exclusive = params.exclusive;
+    this.source = params.element;
+    this.target = params.target;
+    if (params.startFunction)
+        this.startFunction = params.startFunction;
+    if (params.scrollFunctionX)
+        this.scrollFunctionX = params.scrollFunctionX;
+    if (params.scrollFunctionY)
+        this.scrollFunctionY = params.scrollFunctionY;
+
+    params.source.addEventListener("mousedown", function(event) {
+        if (event.buttons == 1) {
+            var node = event.target;
+            while (node) {
+                if (node.tagName == "a")
+                    return;
+                node = node.parentNode;
+            }
+
+            this.startDrag(event.clientX, event.clientY);
+            event.preventDefault();
+            event.stopPropagation();
+        }
+    }.bind(this));
+    document.body.addEventListener("mousemove", function(event) {
+        if (this.dragStartX != null) {
+            if ((event.buttons & 1) == 0) {
+                this.dragStartX = null;
+                return;
+            }
+            this.updateDrag(event.clientX, event.clientY);
+            event.preventDefault();
+            event.stopPropagation();
+        }
+    }.bind(this), true);
+    document.body.addEventListener("mouseup", function(event) {
+        if (this.dragStartX != null) {
+            this.updateDrag(event.clientX, event.clientY);
+            this.dragStartX = null;
+            event.preventDefault();
+            event.stopPropagation();
+        }
+    }.bind(this), true);
+}
+
+ScrollHandler.prototype.startDrag = function(x, y) {
+    this.dragStartX = x;
+    this.dragStartY = y;
+    if (this.target) {
+        this.dragStartScrollTop = this.target.scrollTop;
+        this.dragStartScrollLeft = this.target.scrollLeft;
+    }
+    if (this.startFunction)
+        this.startFunction();
+}
+
+ScrollHandler.prototype.updateDrag = function(x, y) {
+    var deltaX = x - this.dragStartX;
+    var deltaY = y - this.dragStartY;
+
+    if (this.exclusive) {
+        if (Math.abs(deltaX) > Math.abs(deltaY))
+            deltaY = 0;
+        else
+            deltaX = 0;
+    }
+
+    if (this.scrollFunctionX)
+        this.scrollFunctionX(deltaX);
+    else if (this.target)
+        this.target.scrollLeft = this.dragStartScrollLeft - deltaX;
+
+    if (this.scrollFunctionY)
+        this.scrollFunctionY(y - this.dragStartY);
+    else if (this.target)
+        this.target.scrollTop = this.dragStartScrollTop - deltaY;
+}
+
+////////////////////////////////////////////////////////////////////////
+
 function Table(element) {
     if (element == null) // prototype
         return;
@@ -526,6 +608,11 @@ function Table(element) {
     $( "#dataTableDiv" ).scroll(function() {
         $( "#columnLabelTable" ).css("left", - $( this ).scrollLeft() + "px");
         $( "#rowLabelTable" ).css("top", - $( this ).scrollTop() + "px");
+    });
+
+    this.scrollHandler = new ScrollHandler({
+        source: $( "#mainRight" ).get(0),
+        target: $( "#dataTableDiv" ).get(0),
     });
 }
 
@@ -1094,6 +1181,17 @@ PerfDisplay.prototype.updateElementsForRange = function() {
     $( "#" + rangeType + "Link" ).addClass('range-active');
 }
 
+PerfDisplay.prototype.scrollByDeltaX = function(startTime, deltaX) {
+    var chart = $( ".chart" ).first().get(0);
+    var chartBodyWidth = chart.parentNode.clientWidth - (MARGIN_LEFT + MARGIN_RIGHT + 2);
+    var newPos = startTime + deltaX * this.rangeSeconds / chartBodyWidth;
+    if (newPos == this.centerTime)
+        return;
+
+    this.setPositionAndRange(newPos,
+                             this.rangeType,
+                             true);
+}
 
 PerfDisplay.prototype.onWindowLoaded = function() {
     this.updateElementsForRange();
@@ -1127,15 +1225,20 @@ PerfDisplay.prototype.onWindowLoaded = function() {
 
     var mainLeft = $( "#mainLeft" ).get(0);
     mainLeft.addEventListener("wheel", function(event) {
-        if (event.deltaX == 0)
-            return;
-
-        var chart = $( ".chart" ).first().get(0);
-        var chartBodyWidth = chart.parentNode.clientWidth - (MARGIN_LEFT + MARGIN_RIGHT + 2);
-        this.setPositionAndRange(this.centerTime + 10 * event.deltaX * this.rangeSeconds / chartBodyWidth,
-                                 this.rangeType,
-                                 true);
+        this.scrollByDeltaX(this.centerTime, 10 * event.deltaX);
     }.bind(this));
+
+    this.scrollHandler = new ScrollHandler({
+        exclusive: true,
+        source: mainLeft,
+        target: mainLeft,
+        startFunction: function() {
+            this.dragStartTime = theDisplay.centerTime;
+        },
+        scrollFunctionX: function(deltaX) {
+            theDisplay.scrollByDeltaX(this.dragStartTime, -deltaX);
+        }
+    });
 
     $( window ).resize(function() {
         this.refresh();
