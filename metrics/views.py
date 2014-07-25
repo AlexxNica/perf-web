@@ -330,8 +330,7 @@ def process_report(data, machine_name):
 
     pull_time_str = child_string(data, 'pullTime')
     try:
-        pull_time = datetime.strptime(pull_time_str, '%Y-%m-%d %H:%M:%S')
-        pull_time.replace(tzinfo=timezone.utc)
+        pull_time = datetime.strptime(pull_time_str, '%Y-%m-%d %H:%M:%S').replace(tzinfo=timezone.utc)
     except ValueError:
         raise ValidationError("Can't parse property 'pullTime'")
 
