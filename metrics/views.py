@@ -393,7 +393,7 @@ def upload(request):
     except BadSignature, e:
         return HttpResponseBadRequest("Signature check failed: " + e.message)
 
-    toload = application_json_to_unicode(request.raw_post_data)
+    toload = application_json_to_unicode(request.body)
     try:
         data = json.loads(toload)
     except ValueError, e:
