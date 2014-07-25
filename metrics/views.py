@@ -331,7 +331,7 @@ def process_report(data, machine_name):
     pull_time_str = child_string(data, 'pullTime')
     try:
         pull_time = datetime.strptime(pull_time_str, '%Y-%m-%d %H:%M:%S').replace(tzinfo=timezone.utc)
-        pull_time = pull_time + timedelta(seconds=partition.machine.time_adjust_sec)
+        pull_time = pull_time + timedelta(seconds=target.partition.machine.time_adjust_sec)
     except ValueError:
         raise ValidationError("Can't parse property 'pullTime'")
 
