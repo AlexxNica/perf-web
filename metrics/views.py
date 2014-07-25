@@ -273,7 +273,7 @@ class ValidationError(Exception):
 def child(parent, key):
     val = parent.get(key, None)
     if val is None:
-        raise ValidationError("'%s' is missing")
+        raise ValidationError("'%s' is missing" % key)
     return val
 
 def child_string(parent, key):
