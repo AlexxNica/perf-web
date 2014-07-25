@@ -113,6 +113,12 @@ class Machine(ConfigObject):
         self.cpu = parser.get(section, 'cpu')
         self.graphics = parser.get(section, 'graphics')
         self.memory = parser.get(section, 'memory')
+        # Time to adjust pull_times with - this is a workaround for a temporarily
+        # inacessible control server that is not tracking time properly
+        try:
+            self.time_adjust_sec = int(parser.get(section, 'time_adjust_sec'))
+        except ConfigParser.NoOptionError, e:
+            self.time_adjust_sec = 0
 
 class Metric(ConfigObject):
     def _load(self, parser, section):
