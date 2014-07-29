@@ -153,16 +153,7 @@ def values(request):
     summaryCls = _SUMMARY_CLASSES[group]
     if summaryCls is None:
         qs = Value.objects.all()
-        if start:
-            qs = qs.filter(report__pull_time__gte=start)
-        if end:
-            qs = qs.filter(report__pull_time__lt=end)
-        if target:
-            qs = qs.filter(report__target__name=target.name)
-        if metric:
-            qs = qs.filter(metric__name=metric.name)
-
-        qs = qs.order_by('metric', 'report__target', 'report__pull_time')
+        qs = Value.filter_and_order(qs, start, end, metric, target)
 
         last_metric = None
         last_target = None
