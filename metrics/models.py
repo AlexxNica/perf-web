@@ -34,7 +34,8 @@ class Value(models.Model):
         if target is not None:
             qs = qs.filter(report__target__name=target.name)
 
-        return qs.order_by('metric', 'report__target', 'report__pull_time')
+        return qs.order_by('metric', 'report__target', 'report__pull_time') \
+                 .select_related('report__target', 'metric')
 
 def resummarize():
     # We give machines a 6 hours grace period to update results
@@ -185,7 +186,8 @@ class Summary(models.Model):
         if target is not None:
             qs = qs.filter(target__name=target.name)
 
-        return qs.order_by('target', 'metric', 'time')
+        return qs.order_by('target', 'metric', 'time') \
+                 .select_related('report__target', 'metric')
 
 class SummaryHour6(Summary):
     @staticmethod
