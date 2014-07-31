@@ -5,7 +5,7 @@
          xmlns="http://usefulinc.com/ns/doap#">
 
   <name xml:lang="en">perf-web</name>
-  <shortdesc xml:lang="en">code for perf.gnome.org</shortdesc>
+  <shortdesc xml:lang="en">Code for perf.gnome.org</shortdesc>
   <description>
    This module contains the code for perf.gnome.org, which collects and
    displays metrics gathered by the GNOME Hardware Testing Project.
@@ -14,7 +14,8 @@
   <homepage rdf:resource="https://wiki.gnome.org/Projects/HardwareTesting" />
   <bug-database rdf:resource="https://bugzilla.gnome.org/browse.cgi?product=website&amp;component=perf.gnome.org" />
   <category rdf:resource="http://api.gnome.org/doap-extensions#infrastructure" />
-  <programming-language>Python and JS</programming-language>
+  <programming-language>Python</programming-language>
+  <programming-language>JavaScript</programming-language>
 
   <maintainer>
     <foaf:Person>
