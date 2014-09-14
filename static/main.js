@@ -655,6 +655,7 @@ function ScrollHandler(params)
     document.body.addEventListener("mouseup", function(event) {
         if (this.dragStartX != null) {
             this.updateDrag(event.clientX, event.clientY);
+            $( document.body ).removeClass('panning');
             this.dragStartX = null;
             event.preventDefault();
             event.stopPropagation();
@@ -671,6 +672,7 @@ ScrollHandler.prototype.startDrag = function(x, y) {
     }
     if (this.startFunction)
         this.startFunction();
+    $( document.body ).addClass('panning');
 }
 
 ScrollHandler.prototype.updateDrag = function(x, y) {
