@@ -628,7 +628,7 @@ function ScrollHandler(params)
         this.scrollFunctionY = params.scrollFunctionY;
 
     params.source.addEventListener("mousedown", function(event) {
-        if (event.buttons == 1) {
+        if (event.button == 0) {
             var node = event.target;
             while (node) {
                 if (node.tagName == "a")
@@ -641,23 +641,17 @@ function ScrollHandler(params)
             event.stopPropagation();
         }
     }.bind(this));
-    document.body.addEventListener("mousemove", function(event) {
+    window.addEventListener("mousemove", function(event) {
         if (this.dragStartX != null) {
-            if ((event.buttons & 1) == 0) {
-                this.dragStartX = null;
-                return;
-            }
             this.updateDrag(event.clientX, event.clientY);
             event.preventDefault();
             event.stopPropagation();
         }
     }.bind(this), true);
-    document.body.addEventListener("mouseup", function(event) {
+    window.addEventListener("mouseup", function(event) {
         if (this.dragStartX != null) {
             this.updateDrag(event.clientX, event.clientY);
-            $( document.body ).removeClass('panning');
-            this.dragStartX = null;
-            this.dragLocked = null;
+            this.endDrag();
             event.preventDefault();
             event.stopPropagation();
         }
@@ -706,6 +700,12 @@ ScrollHandler.prototype.updateDrag = function(x, y) {
         this.scrollFunctionY(y - this.dragStartY);
     else if (this.target)
         this.target.scrollTop = this.dragStartScrollTop - deltaY;
+}
+
+ScrollHandler.prototype.endDrag = function() {
+    $( document.body ).removeClass('panning');
+    this.dragStartX = null;
+    this.dragLocked = null;
 }
 
 ////////////////////////////////////////////////////////////////////////
