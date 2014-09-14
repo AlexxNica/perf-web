@@ -95,27 +95,11 @@ function Chart(svg) {
     this.bottom = 10;
 
     svg.addEventListener("dblclick", function(event) {
-        var rangeType;
-        switch (theDisplay.rangeType) {
-        case 'day':
-            return;
-        case 'week':
-            rangeType = 'day';
-            break;
-        case 'month':
-            rangeType = 'week';
-            break;
-        case 'year':
-            rangeType = 'month';
-            break;
-        }
-
         var offset = $( this.body ).offset();
         var x = event.pageX - offset.left;
         var centerTime = this.time(x);
 
-        theDisplay.setPositionAndRange(centerTime, rangeType, false);
-        theDisplay.updateElementsForRange();
+        theDisplay.zoomIn(centerTime);
     }.bind(this));
 }
 
@@ -1328,6 +1312,52 @@ PerfDisplay.prototype.scrollByDeltaX = function(startTime, deltaX) {
                              true);
 }
 
+PerfDisplay.prototype.zoomIn = function(centerTime) {
+    if (centerTime == null)
+        centerTime = this.centerTime;
+
+    var rangeType;
+    switch (this.rangeType) {
+    case 'day':
+        return;
+    case 'week':
+        rangeType = 'day';
+        break;
+    case 'month':
+        rangeType = 'week';
+        break;
+    case 'year':
+        rangeType = 'month';
+        break;
+    }
+
+    this.setPositionAndRange(centerTime, rangeType, false);
+    this.updateElementsForRange();
+}
+
+PerfDisplay.prototype.zoomOut = function(centerTime) {
+    if (centerTime == null)
+        centerTime = this.centerTime;
+
+    var rangeType;
+    switch (this.rangeType) {
+    case 'day':
+        rangeType = 'week';
+        break;
+    case 'week':
+        rangeType = 'month';
+        break;
+    case 'month':
+        rangeType = 'year';
+        break;
+    case 'year':
+        return;
+    }
+
+    this.setPositionAndRange(centerTime, rangeType, false);
+    this.updateElementsForRange();
+}
+
 PerfDisplay.prototype.onWindowLoaded = function() {
     this.updateElementsForRange();
 
@@ -1374,6 +1404,17 @@ PerfDisplay.prototype.onWindowLoaded = function() {
             theDisplay.scrollByDeltaX(this.dragStartTime, -deltaX);
         }
     });
+
+    $( document.body ).keypress(function(e) {
+        console.log(e);
+        if (e.which == 43) { /* + */
+            e.preventDefault();
+            this.zoomIn();
+        } else if (e.which == 45) { /* - */
+            e.preventDefault();
+            this.zoomOut();
+        }
+    }.bind(this));
 
     $( window ).resize(function() {
         this.refresh();
