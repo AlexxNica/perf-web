@@ -1411,7 +1411,9 @@ PerfDisplay.prototype.onWindowLoaded = function() {
         source: mainLeft,
         target: mainLeft,
         startFunction: function() {
-            this.dragStartTime = theDisplay.centerTime;
+            // theDisplay.centerTime is unclamped to get stability when zooming, but
+            // we want the *displayed* center time.
+            this.dragStartTime = theDisplay.startSeconds + theDisplay.rangeSeconds / 2;
         },
         scrollFunctionX: function(deltaX) {
             theDisplay.scrollByDeltaX(this.dragStartTime, -deltaX);
