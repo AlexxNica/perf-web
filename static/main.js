@@ -1406,7 +1406,6 @@ PerfDisplay.prototype.onWindowLoaded = function() {
     });
 
     $( document.body ).keypress(function(e) {
-        console.log(e);
         if (e.which == 43) { /* + */
             e.preventDefault();
             this.zoomIn();
