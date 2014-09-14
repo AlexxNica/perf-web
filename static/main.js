@@ -82,6 +82,14 @@ function Chart(svg) {
     this.lowerText = $( svg ).find( ".chart-lower" ).get(0);
     this.background = $( svg ).find( ".chart-background" ).get(0);
     this.body = $( svg ).find( ".chart-body" ).get(0);
+    this.grid = $( svg ).find( ".chart-grid" ).get(0);
+    this.chartData = $( svg ).find( ".chart-data" ).get(0);
+
+    this.polylines = [];
+    this.pointPaths = [];
+    this.xGridLines = [];
+    this.yGridLines = [];
+    this.xLabelTexts = [];
 
     this.top = 10;
     this.bottom = 10;
@@ -141,6 +149,14 @@ Chart.prototype.allocate = function() {
     allocateElement(this.body,       MARGIN_LEFT + 1,       MARGIN_TOP + 1,       this.bodyWidth,     this.bodyHeight);
 }
 
+Chart.prototype.removeExtraElements = function(elements, nToSave) {
+    if (elements.length > nToSave) {
+        for (var j = nToSave; j < elements.length; j++)
+            elements[j].parentNode.removeChild(elements[j]);
+        elements.splice(nToSave, elements.length - nToSave);
+    }
+}
+
 Chart.prototype.drawTarget = function(targetData) {
     var values = targetData.values;
     var index = targetData.index;
@@ -148,29 +164,64 @@ Chart.prototype.drawTarget = function(targetData) {
     if (values.length == 0)
         return;
 
+    var path;
+
+    var polyline = this.polylines[index];
+    if (this.polylines[index] == null) {
+        this.polylines[index] = polyline = createElement("polyline");
+        polyline.setAttribute("stroke", strokeStyles[index % strokeStyles.length]);
+        polyline.setAttribute("fill", "none");
+        this.chartData.appendChild(polyline);
+    }
+
     path = "";
-    for (var i = 0; i < 2 * values.length; i += 2)
-        path += this.x(values.data[i]) + "," + this.y(values.data[i + 1]) + " ";
 
-    var polyline = createElement("polyline");
-    polyline.setAttribute("stroke", strokeStyles[index % strokeStyles.length]);
-    polyline.setAttribute("fill", "none");
+    // Start at the point *before* the first in-range point
+    var i;
+    for (i = 0; i < 2 * values.length; i += 2) {
+        var x = this.x(values.data[i]);
+        if (x >= 0) {
+            i = Math.max(i - 2, 0);
+            break;
+        }
+    }
+
+    // Then continue to first point past the range
+    for (; i < 2 * values.length; i += 2) {
+        var x = this.x(values.data[i]);
+        var y = this.y(values.data[i + 1])
+        path += x + "," + y + " ";
+        if (x >= this.bodyWidth)
+            break;
+    }
+
     polyline.setAttribute("points", path);
-    this.body.appendChild(polyline);
 
+    var pointPath = this.pointPaths[index];
+    if (this.pointPaths[index] == null) {
+        this.pointPaths[index] = pointPath = createElement("path");
+        pointPath.setAttribute("fill", strokeStyles[index % strokeStyles.length]);
+        this.chartData.appendChild(pointPath);
+    }
+
+    path = "";
     for (var i = 0; i < 2 * values.length; i += 2) {
         var x = this.x(values.data[i]);
+        if (x + 2 <= 0 || x - 2 >= this.bodyWidth)
+            continue;
+
         var y = this.y(values.data[i + 1]);
 
-        var rect = createElement("rect");
-        allocateElement(rect, x - 2, y - 2, 4, 4);
-        rect.setAttribute("fill", strokeStyles[index % strokeStyles.length]);
-        this.body.appendChild(rect);
+        path += "M" + (x - 2) + " " + (y - 2) + " " + "h4v4h-4z"
     }
+
+    pointPath.setAttribute("d", path);
 }
 
 Chart.prototype.getTargets = function() {
     var targets = [];
+    if (!(this.metric in theDisplay.data))
+        return targets;
 
     for (var i = 0; i < theDisplay.allTargetsSorted.length; i++) {
         var target = theDisplay.allTargetsSorted[i];
@@ -292,8 +343,6 @@ TIME_OPS = {
 };
 
 Chart.prototype.drawXLabels = function() {
-    $( this.xLabels ).empty();
-
     var truncate;
     var step;
     var format;
@@ -319,21 +368,39 @@ Chart.prototype.drawXLabels = function() {
     var endTime = theDisplay.endSeconds * 1000;
 
     var date = new Date(startTime);
+    var nUsed = 0;
+
     timeOps.truncate(date);
     while (date.getTime() < endTime) {
         if (date.getTime() >= startTime) {
+            var t = this.xLabelTexts[nUsed];
             var x = this.x(date.getTime() / 1000);
-            var t = createElement("text", "chart-xlabel");
-            positionElement(t, x, 10);
-            t.appendChild(document.createTextNode(timeOps.format(date)));
-            this.xLabels.appendChild(t);
 
-            var rect = createElement("rect", "chart-grid");
+            if (t == null) {
+                this.xLabelTexts[nUsed] = t = createElement("text", "chart-xlabel");
+                this.xLabels.appendChild(t);
+            } else {
+                t.removeChild(t.firstChild);
+            }
+
+            t.appendChild(document.createTextNode(timeOps.format(date)));
+            positionElement(t, x, 10);
+
+            var rect = this.xGridLines[nUsed];
+            if (rect == null) {
+                this.xGridLines[nUsed] = rect = createElement("rect", "chart-grid");
+                this.grid.appendChild(rect);
+            }
+
             allocateElement(rect, x - 0.5, 0, 1, this.bodyHeight);
-            this.body.appendChild(rect);
+
+            nUsed++;
         }
         timeOps.next(date);
     }
+
+    this.removeExtraElements(this.xGridLines, nUsed);
+    this.removeExtraElements(this.xLabelTexts, nUsed);
 }
 
 Chart.prototype.drawYLabels = function(targets) {
@@ -429,28 +496,46 @@ Chart.prototype.drawYLabels = function(targets) {
     this.top = top;
 
     for (i = 1; i < steps; i++) {
-        var rect = createElement("rect", "chart-grid");
+        var rect = this.yGridLines[i - 1];
+        if (rect == null) {
+            this.yGridLines[i - 1] = rect = createElement("rect", "chart-grid");
+            this.grid.appendChild(rect);
+        }
+
         allocateElement(rect, 0, this.y(bottom + i * step) - 0.5, this.bodyWidth, 1);
-        this.body.appendChild(rect);
     }
+
+    this.removeExtraElements(this.yGridLines, steps - 1);
 }
 
 Chart.prototype.draw = function() {
     this.allocate();
 
-    $( this.body ).empty();
-
     this.drawXLabels();
 
-    if (!(this.metric in theDisplay.data))
-        return;
-
-    targets = this.getTargets();
+    var targets = this.getTargets();
+    var usedIndices = {};
 
     this.drawYLabels(targets);
 
-    for (var i = 0; i < targets.length; i++)
+    for (var i = 0; i < targets.length; i++) {
         this.drawTarget(targets[i]);
+        usedIndices[i] = true;
+    }
+
+    for (index in this.pointPaths) {
+        if (!(index in usedIndices)) {
+            this.chartData.removeChild(this.pointPaths[index]);
+            delete this.pointPaths[index];
+        }
+    }
+
+    for (index in this.polylines) {
+        if (!(index in usedIndices)) {
+            this.chartData.removeChild(this.polylines[index]);
+            delete this.polylines[index];
+        }
+    }
 }
 
 ////////////////////////////////////////////////////////////////////////
@@ -978,12 +1063,17 @@ PerfDisplay.prototype.setPositionAndRange = function(centerTime, rangeType, clam
         this.centerTime = this.endSeconds - this.rangeSeconds / 2;
 
     this.load();
-    this.refresh();
+    this.queueRefresh();
     if (rangeTypeChanged)
         history.replaceState(null, null, "?r=" + rangeType);
 }
 
 PerfDisplay.prototype.refresh = function() {
+    if (this.refreshQueueId != null) {
+        window.cancelAnimationFrame(this.refreshQueueId);
+        this.refreshQueueId = null;
+    }
+
     if (!this.windowLoaded)
         return;
 
@@ -992,6 +1082,16 @@ PerfDisplay.prototype.refresh = function() {
 
     if (this.table != null)
         this.table.refresh();
+}
+
+PerfDisplay.prototype.queueRefresh = function() {
+    if (this.refreshQueueId != null)
+        return;
+
+    requestAnimationFrame(function() {
+        this.refreshQueueId = null;
+        theDisplay.refresh();
+    });
 }
 
 var TIME_OFFSETS = {
