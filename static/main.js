@@ -165,37 +165,44 @@ Chart.prototype.drawTarget = function(targetData) {
         return;
 
     var path;
+    if (theDisplay.loadedGroup != 'none') {
 
-    var polyline = this.polylines[index];
-    if (this.polylines[index] == null) {
-        this.polylines[index] = polyline = createElement("polyline");
-        polyline.setAttribute("stroke", strokeStyles[index % strokeStyles.length]);
-        polyline.setAttribute("fill", "none");
-        this.chartData.appendChild(polyline);
-    }
+        var polyline = this.polylines[index];
+        if (this.polylines[index] == null) {
+            this.polylines[index] = polyline = createElement("polyline");
+            polyline.setAttribute("stroke", strokeStyles[index % strokeStyles.length]);
+            polyline.setAttribute("fill", "none");
+            this.chartData.appendChild(polyline);
+        }
 
-    path = "";
+        path = "";
 
-    // Start at the point *before* the first in-range point
-    var i;
-    for (i = 0; i < 2 * values.length; i += 2) {
-        var x = this.x(values.data[i]);
-        if (x >= 0) {
-            i = Math.max(i - 2, 0);
-            break;
+        // Start at the point *before* the first in-range point
+        var i;
+        for (i = 0; i < 2 * values.length; i += 2) {
+            var x = this.x(values.data[i]);
+            if (x >= 0) {
+                i = Math.max(i - 2, 0);
+                break;
+            }
+        }
+
+        // Then continue to first point past the range
+        for (; i < 2 * values.length; i += 2) {
+            var x = this.x(values.data[i]);
+            var y = this.y(values.data[i + 1])
+            path += x + "," + y + " ";
+            if (x >= this.bodyWidth)
+                break;
+        }
+
+        polyline.setAttribute("points", path);
+    } else {
+        if (this.polylines[index] != null) {
+            this.chartData.removeChild(this.polylines[index]);
+            delete this.polylines[index];
         }
     }
-
-    // Then continue to first point past the range
-    for (; i < 2 * values.length; i += 2) {
-        var x = this.x(values.data[i]);
-        var y = this.y(values.data[i + 1])
-        path += x + "," + y + " ";
-        if (x >= this.bodyWidth)
-            break;
-    }
-
-    polyline.setAttribute("points", path);
 
     var pointPath = this.pointPaths[index];
     if (this.pointPaths[index] == null) {
