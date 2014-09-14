@@ -657,6 +657,7 @@ function ScrollHandler(params)
             this.updateDrag(event.clientX, event.clientY);
             $( document.body ).removeClass('panning');
             this.dragStartX = null;
+            this.dragLocked = null;
             event.preventDefault();
             event.stopPropagation();
         }
@@ -680,10 +681,20 @@ ScrollHandler.prototype.updateDrag = function(x, y) {
     var deltaY = y - this.dragStartY;
 
     if (this.exclusive) {
-        if (Math.abs(deltaX) > Math.abs(deltaY))
-            deltaY = 0;
-        else
-            deltaX = 0;
+        if (this.dragLocked != null) {
+            if (this.dragLocked == 'x')
+                deltaY = 0;
+            else
+                deltaX = 0;
+        } else {
+            if (Math.abs(deltaX) > Math.abs(deltaY))
+                deltaY = 0;
+            else
+                deltaX = 0;
+
+            if (Math.max(Math.abs(deltaX), Math.abs(deltaY)) > 10)
+                this.dragLocked = deltaX != 0 ? 'x' : 'y';
+        }
     }
 
     if (this.scrollFunctionX)
