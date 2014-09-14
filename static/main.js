@@ -93,10 +93,38 @@ function Chart(svg) {
 
     this.top = 10;
     this.bottom = 10;
+
+    svg.addEventListener("dblclick", function(event) {
+        var rangeType;
+        switch (theDisplay.rangeType) {
+        case 'day':
+            return;
+        case 'week':
+            rangeType = 'day';
+            break;
+        case 'month':
+            rangeType = 'week';
+            break;
+        case 'year':
+            rangeType = 'month';
+            break;
+        }
+
+        var offset = $( this.body ).offset();
+        var x = event.pageX - offset.left;
+        var centerTime = this.time(x);
+
+        theDisplay.setPositionAndRange(centerTime, rangeType, false);
+        theDisplay.updateElementsForRange();
+    }.bind(this));
 }
 
 Chart.prototype.x = function(time) {
     return this.bodyWidth * (time - theDisplay.startSeconds) / theDisplay.rangeSeconds;
+}
+
+Chart.prototype.time = function(x) {
+    return theDisplay.startSeconds + (x / this.bodyWidth) * theDisplay.rangeSeconds;
 }
 
 Chart.prototype.y = function(value) {
