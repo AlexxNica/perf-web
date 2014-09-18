@@ -436,3 +436,17 @@ body.details-showing #details {
     margin-right: 3px;
     margin-bottom: 3px;
 }
+
+#hints {
+    position: fixed;
+    background: white;
+    border: 1px solid #aaaaaa;
+    padding: 3px;
+    top: 35px;
+    right: 10px;
+    font-size: 9px;
+}
+
+.hint-disabled {
+    color: #aaaaaa;
+}

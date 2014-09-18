@@ -112,7 +112,7 @@ Chart.prototype.y = function(value) {
     return this.bodyHeight * (1 - (value - this.bottom) / (this.top - this.bottom));
 }
 
-Chart.prototype.setHover = function(target, time) {
+Chart.prototype.setHover = function(target, time, isMouse) {
     var topY = this.y(this.topValue);
     var bottomY = this.y(this.bottomValue);
     var values = target.values;
@@ -132,6 +132,7 @@ Chart.prototype.setHover = function(target, time) {
                 time: time,
                 revision: theDisplay.allTargets[target.target].revisions[time],
                 value: values.data[j + 1] * this.multiplier,
+                isMouse: isMouse
             });
 
             return;
@@ -166,7 +167,7 @@ Chart.prototype.onMouseMove = function(event) {
     }
 
     if (closestTarget)
-        this.setHover(closestTarget, closestTime);
+        this.setHover(closestTarget, closestTime, true);
     else
         theDisplay.setHover(null);
 }
@@ -1235,8 +1236,10 @@ PerfDisplay.prototype.setPositionAndRange = function(centerTime, rangeType, clam
 
     this.load();
     this.queueRefresh();
-    if (rangeTypeChanged)
+    if (rangeTypeChanged) {
+        this.updateHints();
         history.replaceState(null, null, "?r=" + rangeType);
+    }
 }
 
 PerfDisplay.prototype.refresh = function() {
@@ -1623,6 +1626,8 @@ PerfDisplay.prototype.onWindowLoaded = function() {
         this.refresh();
     }.bind(this));
 
+    this.updateHints();
+
     if (!this.loadedRanges.isEmpty())
         this.refresh();
 }
@@ -1646,6 +1651,8 @@ PerfDisplay.prototype.setHover = function(hoverInfo)
     } else {
         $( hover ).hide();
     }
+
+    this.updateHints();
 }
 
 PerfDisplay.prototype.setDetails = function(detailsInfo)
@@ -1659,6 +1666,7 @@ PerfDisplay.prototype.setDetails = function(detailsInfo)
     }
 
     this.queueRefresh();
+    this.updateHints();
 }
 
 PerfDisplay.prototype.moveDetails = function(direction)
@@ -1719,7 +1727,7 @@ PerfDisplay.prototype.moveDetails = function(direction)
     }
 
     if (newTime != null) {
-        chart.setHover(newTarget, newTime);
+        chart.setHover(newTarget, newTime, false);
 
         this.detailsInfo.time = newTime;
         this.detailsInfo.revision = newRevision;
@@ -1838,6 +1846,16 @@ PerfDisplay.prototype.fetchRevisions = function(date) {
                     this.revisions[revision] = datePath + '/' + targetMap[revision][0];
                 this.updateDetails();
             }.bind(this)});
+}
+
+PerfDisplay.prototype.updateHints = function() {
+    $( "#hintPlus" ).toggleClass('hint-disabled', this.rangeType == 'day');
+    $( "#hintMinus" ).toggleClass('hint-disabled', this.rangeType == 'year');
+    $( "#hintDblClickZoom" ).toggle(this.rangeType != 'day');
+    $( "#hintDblClickDetails" ).toggle(this.rangeType == 'day');
+    $( "#hintEsc" ).toggle(this.detailsInfo != null);
+    $( "#hintLeft" ).toggle(this.detailsInfo != null);
+    $( "#hintRight" ).toggle(this.detailsInfo != null);
 }
 
 //////////////////////////////////////////////////////////////////////////////////
