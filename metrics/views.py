@@ -21,11 +21,11 @@ _EPOCH = datetime(1970, 1, 1, tzinfo=timezone.utc)
 # timedelta.total_seconds added in 2.7
 if hasattr(timedelta, 'total_seconds'):
     def unix_time(dt):
-        return (dt - _EPOCH).total_seconds()
+        return int(round((dt - _EPOCH).total_seconds()))
 else:
     def unix_time(dt):
         td = dt - _EPOCH
-        return float(td.microseconds + (td.seconds + td.days * 24 * 3600) * 10**6) / 10**6
+        return int(round(float(td.microseconds + (td.seconds + td.days * 24 * 3600) * 10**6) / 10**6))
 
 def home(request):
     t = loader.get_template('metrics/home.html')
@@ -148,10 +148,13 @@ def values(request):
     if not group in _SUMMARY_CLASSES:
         return HttpResponseBadRequest("Invalid group type")
 
-    result = []
+    result = {}
+    result['metrics'] = metrics = []
 
     summaryCls = _SUMMARY_CLASSES[group]
     if summaryCls is None:
+        target_map = {}
+
         qs = Value.objects.all()
         qs = Value.filter_and_order(qs, start, end, metric, target)
 
@@ -166,11 +169,12 @@ def values(request):
                     'name': metric_name,
                     'targets': []
                 }
-                result.append(metric_data)
+                metrics.append(metric_data)
                 last_metric = metric_name
                 last_target = None
 
             target_name = value.report.target.name
+
             if target_name != last_target:
                 target_data = {
                     'name': target_name,
@@ -179,10 +183,24 @@ def values(request):
                 metric_data['targets'].append(target_data)
                 last_target = target_name
 
+                if target_name in target_map:
+                    revisions = target_map[target_name]
+                else:
+                    revisions = target_map[target_name] = {}
+
+            pull_time_str = str(unix_time(value.report.pull_time))
+            if not pull_time_str in revisions:
+                revisions[pull_time_str] = value.report.revision
+
             target_data['values'].append({
                 'time': unix_time(value.report.pull_time),
                 'value': value.value
             })
+
+        result['targets'] = targets = []
+        for name, revisions in target_map.iteritems():
+            targets.append({'name': name,
+                            'revisions': revisions});
     else:
         summaries = summaryCls.get_summaries(start, end, target, metric)
 
@@ -197,7 +215,7 @@ def values(request):
                     'name': metric_name,
                     'targets': []
                 }
-                result.append(metric_data)
+                metrics.append(metric_data)
                 last_metric = metric_name
                 last_target = None
 

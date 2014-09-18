@@ -84,9 +84,11 @@ function Chart(svg) {
     this.body = $( svg ).find( ".chart-body" ).get(0);
     this.grid = $( svg ).find( ".chart-grid" ).get(0);
     this.chartData = $( svg ).find( ".chart-data" ).get(0);
+    this.highlights = $( svg ).find( ".chart-highlights" ).get(0);
 
     this.polylines = [];
     this.pointPaths = [];
+    this.highlightMarkers = [];
     this.xGridLines = [];
     this.yGridLines = [];
     this.xLabelTexts = [];
@@ -94,13 +96,8 @@ function Chart(svg) {
     this.top = 10;
     this.bottom = 10;
 
-    svg.addEventListener("dblclick", function(event) {
-        var offset = $( this.body ).offset();
-        var x = event.pageX - offset.left;
-        var centerTime = this.time(x);
-
-        theDisplay.zoomIn(centerTime);
-    }.bind(this));
+    svg.addEventListener("dblclick", this.onDblClick.bind(this));
+    svg.addEventListener("mousemove", this.onMouseMove.bind(this));
 }
 
 Chart.prototype.x = function(time) {
@@ -113,6 +110,80 @@ Chart.prototype.time = function(x) {
 
 Chart.prototype.y = function(value) {
     return this.bodyHeight * (1 - (value - this.bottom) / (this.top - this.bottom));
+}
+
+Chart.prototype.setHover = function(target, time) {
+    var topY = this.y(this.topValue);
+    var bottomY = this.y(this.bottomValue);
+    var values = target.values;
+    for (var j = 0; j < 2 * values.length; j++) {
+        if (values.data[j] == time) {
+            var offset = $( this.body ).offset();
+            var x = this.x(time);
+            var y = this.y(values.data[j + 1]);
+
+            theDisplay.setHover({
+                x: offset.left + x,
+                y: offset.top + y,
+                above: y < (topY + bottomY) / 2 - 3,
+                target: target.target,
+                metric: this.metric,
+                units: this.units,
+                time: time,
+                revision: theDisplay.allTargets[target.target].revisions[time],
+                value: values.data[j + 1] * this.multiplier,
+            });
+
+            return;
+        }
+    }
+}
+
+Chart.prototype.onMouseMove = function(event) {
+    var offset = $( this.body ).offset();
+    var x = event.pageX - offset.left;
+    var y = event.pageY - offset.top;
+
+    var targets = this.getTargets();
+    var closestTarget = null;
+    var closetDist2, closestTime;
+
+    for (var i = 0; i < targets.length; i++) {
+        var values = targets[i].values;
+
+        var j;
+        for (j = 0; j < 2 * values.length; j++) {
+            var pointX = this.x(values.data[j]);
+            var pointY = this.y(values.data[j + 1]);
+            var dist2 = (pointX - x) * (pointX - x) + (pointY - y) * (pointY - y);
+            if (dist2 < 25 && (closestTarget == null || dist2 < closestDist2)) {
+                closestTarget = targets[i];
+                closestTime = values.data[j];
+                closestDist2 = dist2;
+
+            }
+        }
+    }
+
+    if (closestTarget)
+        this.setHover(closestTarget, closestTime);
+    else
+        theDisplay.setHover(null);
+}
+
+Chart.prototype.onDblClick = function(event) {
+    var offset = $( this.body ).offset();
+    var x = event.pageX - offset.left;
+    var centerTime = this.time(x);
+
+    if (theDisplay.rangeType != 'day') {
+        theDisplay.zoomIn(centerTime);
+    } else {
+        if (theDisplay.hoverInfo)
+            theDisplay.setDetails({ time: theDisplay.hoverInfo.time,
+                                    metric: theDisplay.hoverInfo.metric,
+                                    revision: theDisplay.hoverInfo.revision });
+    }
 }
 
 function createElement(name, cls) {
@@ -172,9 +243,19 @@ Chart.prototype.removeExtraElements = function(elements, nToSave) {
 Chart.prototype.drawTarget = function(targetData) {
     var values = targetData.values;
     var index = targetData.index;
+    var highlightTime = null;
+    var highlightX, highlightY;
 
-    if (values.length == 0)
+    if (theDisplay.detailsInfo)
+        highlightTime = theDisplay.detailsInfo.time;
+
+    if (values.length == 0) {
+        if (this.highlightMarkers[index]) {
+            this.highlights.removeChild(this.highlightMarkers[index]);
+            delete this.highlightMarkers[index];
+        }
         return;
+    }
 
     var path;
     if (theDisplay.loadedGroup != 'none') {
@@ -225,16 +306,37 @@ Chart.prototype.drawTarget = function(targetData) {
 
     path = "";
     for (var i = 0; i < 2 * values.length; i += 2) {
-        var x = this.x(values.data[i]);
+        var time = values.data[i];
+        var x = this.x(time);
         if (x + 2 <= 0 || x - 2 >= this.bodyWidth)
             continue;
 
         var y = this.y(values.data[i + 1]);
 
-        path += "M" + (x - 2) + " " + (y - 2) + " " + "h4v4h-4z"
+        path += "M" + (x - 2) + " " + (y - 2) + " " + "h4v4h-4z";
+
+        if (time == highlightTime) {
+            highlightX = x;
+            highlightY = y;
+        }
     }
 
     pointPath.setAttribute("d", path);
+
+    if (highlightX) {
+        var rect = this.highlightMarkers[index];
+        if (rect == null) {
+            this.highlightMarkers[index] = rect = createElement("rect", "chart-highlight");
+            this.highlights.appendChild(rect);
+        }
+
+        allocateElement(rect, highlightX - 2.5, highlightY - 2.5, 5, 5);
+    } else {
+        if (this.highlightMarkers[index]) {
+            this.highlights.removeChild(this.highlightMarkers[index]);
+            delete this.highlightMarkers[index];
+        }
+    }
 }
 
 Chart.prototype.getTargets = function() {
@@ -426,6 +528,9 @@ Chart.prototype.drawYLabels = function(targets) {
     // Always include the X-axis
     var bottom = 0;
     var top = 0;
+    // But we also want the real-range for tooltip positioning
+    var realBottom = null;
+    var realTop = null;
 
     for (var i = 0; i < targets.length; i++) {
         var targetData = targets[i];
@@ -439,7 +544,21 @@ Chart.prototype.drawYLabels = function(targets) {
                 bottom = Math.min(value, bottom);
                 top = Math.max(value, top);
             }
+
+            if (realTop == null) {
+                realTop = realBottom = value;
+            } else {
+                realBottom = Math.min(value, realBottom);
+                realTop = Math.max(value, realTop);
+            }
         }
+    }
+
+    if (realTop == null) {
+        this.bottomValue = this.topValue = 0;
+    } else {
+        this.bottomValue = realBottom;
+        this.topValue = realTop;
     }
 
     // We want to find a multiple of 2, 5, or 10 that covers the range
@@ -487,24 +606,30 @@ Chart.prototype.drawYLabels = function(targets) {
     var displayTop = top;
     var displayBottom = bottom;
 
-    units = this.svg.getAttribute('data-metric-units');
+    var units = this.svg.getAttribute('data-metric-units');
     if (units == 's' || units == 'ms' || units == 'us') {
-        if (units == 's') {
-            displayTop *= 1000000;
-            displayBottom *= 1000000;
-        } else if (units == 'ms') {
-            displayTop *= 1000;
-            displayBottom *= 1000;
-        }
+        if (units == 's')
+            multiplier = 1000000;
+        else if (units == 'ms')
+            multiplier = 1000;
+        else
+            multiplier = 1;
 
         if (bottom <= -1000000 || top >= 1000000) {
-            displayTop /= 1000000;
-            displayBottom /= 1000000;
+            multiplier /= 1000000;
+            units = 's';
         } else if (bottom <= -100 || top >= 1000) {
-            displayTop /= 1000;
-            displayBottom /= 1000;
+            multiplier /= 1000;
+            units = 'ms';
+        } else {
+            units = 'us';
         }
+
+        displayTop *= multiplier;
+        displayBottom *= multiplier;
     }
+    this.units = units;
+    this.multiplier = multiplier;
 
     $( this.upperText ).empty();
     this.upperText.appendChild(document.createTextNode(displayTop));
@@ -553,6 +678,12 @@ Chart.prototype.draw = function() {
         if (!(index in usedIndices)) {
             this.chartData.removeChild(this.polylines[index]);
             delete this.polylines[index];
+        }
+    }
+    for (index in this.highlightMarkers) {
+        if (!(index in usedIndices)) {
+            this.highlights.removeChild(this.highlightMarkers[index]);
+            delete this.highlightMarkers[index];
         }
     }
 }
@@ -1057,6 +1188,9 @@ function PerfDisplay(target, metric, dataMinTime, dataMaxTime, centerTime, range
     this.loadedGroup = null;
     this.loadedRanges = new TimeRanges();
 
+    this.revisions = {};
+    this.loadedRevisions = {};
+
     this.setPositionAndRange(centerTime, rangeType, false);
     $(window).load(this.onWindowLoaded.bind(this));
 }
@@ -1064,6 +1198,11 @@ function PerfDisplay(target, metric, dataMinTime, dataMaxTime, centerTime, range
 PerfDisplay.prototype.setPositionAndRange = function(centerTime, rangeType, clampCenter) {
     var rangeTypeChanged = (this.rangeType != rangeType);
     this.rangeType = rangeType;
+
+    if (rangeType != 'day')
+        this.setDetails(null);
+    if (rangeTypeChanged)
+        this.setHover(null);
 
     switch (rangeType) {
         case 'day':
@@ -1253,8 +1392,9 @@ PerfDisplay.prototype._loadRange = function(group, start, end) {
 
                   this.loadedRanges.add(start, end);
 
-                  for (var i = 0; i < data.length; i++) {
-                      var metricData = data[i];
+                  var metrics = data.metrics;
+                  for (var i = 0; i < metrics.length; i++) {
+                      var metricData = metrics[i];
                       if (!(metricData.name in this.data))
                           this.data[metricData.name] = {};
 
@@ -1286,7 +1426,22 @@ PerfDisplay.prototype._loadRange = function(group, start, end) {
                           else
                               this.data[metricData.name][targetData.name] = values;
 
-                          this.allTargets[targetData.name] = 1;
+                          if (!(targetData.name in this.allTargets))
+                              this.allTargets[targetData.name] = { revisions: {} };
+                      }
+                  }
+
+                  if (data.targets != null) {
+                      var targets = data.targets;
+                      for (var i = 0; i < targets.length; i++) {
+                          var targetData = targets[i];
+                          if (!(targetData.name in this.allTargets))
+                              this.allTargets[targetData.name] = { revisions: {} };
+
+                          var revisions = this.allTargets[targetData.name].revisions;
+                          var newRevisions = targetData.revisions;
+                          for (var time in newRevisions)
+                              revisions[time] = newRevisions[time];
                       }
                   }
 
@@ -1314,6 +1469,9 @@ PerfDisplay.prototype.updateElementsForRange = function() {
 }
 
 PerfDisplay.prototype.scrollByDeltaX = function(startTime, deltaX) {
+    if (deltaX > 3)
+        this.setHover(null);
+
     var chart = $( ".chart" ).first().get(0);
     var chartBodyWidth = chart.parentNode.clientWidth - (MARGIN_LEFT + MARGIN_RIGHT + 2);
     var newPos = startTime + deltaX * this.rangeSeconds / chartBodyWidth;
@@ -1406,6 +1564,18 @@ PerfDisplay.prototype.onWindowLoaded = function() {
         this.scrollByDeltaX(this.centerTime, 10 * event.deltaX);
     }.bind(this));
 
+    $("#detailsClose").click(function() {
+        this.setDetails(null);
+    }.bind(this));
+
+    $("#detailsPrevious").click(function() {
+        this.moveDetails(-1);
+    }.bind(this));
+
+    $("#detailsNext").click(function() {
+        this.moveDetails(+1);
+    }.bind(this));
+
     this.scrollHandler = new ScrollHandler({
         exclusive: true,
         source: mainLeft,
@@ -1421,6 +1591,9 @@ PerfDisplay.prototype.onWindowLoaded = function() {
     });
 
     $( document.body ).keypress(function(e) {
+        if (e.ctrlKey || e.altKey || e.metaKey)
+            return;
+
         if (e.which == 43) { /* + */
             e.preventDefault();
             this.zoomIn();
@@ -1430,12 +1603,241 @@ PerfDisplay.prototype.onWindowLoaded = function() {
         }
     }.bind(this));
 
+    $( document.body ).keydown(function(e) {
+        if (e.ctrlKey || e.altKey || e.metaKey)
+            return;
+
+        if (e.which == 37) { /* left */
+            e.preventDefault();
+            this.moveDetails(-1);
+        } else if (e.which == 39) { /* right */
+            e.preventDefault();
+            this.moveDetails(+1);
+        } else if (e.which == 27) { /* esc */
+            e.preventDefault();
+            this.setDetails(null);
+        }
+    }.bind(this));
+
     $( window ).resize(function() {
         this.refresh();
     }.bind(this));
 
     if (!this.loadedRanges.isEmpty())
         this.refresh();
+}
+
+PerfDisplay.prototype.setHover = function(hoverInfo)
+{
+    var hover = $( "#hover" ).get(0);
+    this.hoverInfo = hoverInfo;
+    if (hoverInfo) {
+        var date = new Date(hoverInfo.time * 1000.);
+        var dateStr =  (date.getUTCFullYear() + '-' + pad(date.getUTCMonth() + 1) + '-' + pad(date.getUTCDate()) + ' ' +
+                        pad(date.getUTCHours()) + ':' + pad(date.getUTCMinutes()) + ':' + pad(date.getUTCSeconds()));
+        $( "#hover" ).text (hoverInfo.value.toPrecision(4) + hoverInfo.units);
+        var x = Math.max(0, hoverInfo.x - hover.offsetWidth / 2);
+        var y;
+        if (hoverInfo.above)
+            y = hoverInfo.y - hover.offsetHeight - 10;
+        else
+            y = hoverInfo.y + 10;
+        $( hover ).css('top', y).css('left', x).show();
+    } else {
+        $( hover ).hide();
+    }
+}
+
+PerfDisplay.prototype.setDetails = function(detailsInfo)
+{
+    this.detailsInfo = detailsInfo;
+    if (this.detailsInfo) {
+        this.refreshDetails();
+        $( "body" ).addClass("details-showing");
+    } else {
+        $( "body" ).removeClass("details-showing");
+    }
+
+    this.queueRefresh();
+}
+
+PerfDisplay.prototype.moveDetails = function(direction)
+{
+    if (this.detailsInfo == null)
+        return;
+
+    var chart;
+    for (var i = 0; i < this.charts.length; i++) {
+        if (this.charts[i].metric == this.detailsInfo.metric) {
+            chart = this.charts[i];
+            break;
+        }
+    }
+
+    var targets = chart.getTargets();
+    var newTime = null;
+    var newTarget = null;
+    var newRevision = null;
+    var oldTime = this.detailsInfo.time;
+
+    for (var i = 0; i < targets.length; i++) {
+        var target = targets[i];
+        var targetRevisions = this.allTargets[target.target].revisions;
+        var targetTime = null;
+
+        if (direction > 0) {
+            for (var j = 0; j <= 2 * target.values.length; j += 2) {
+                var time = target.values.data[j];
+                if (time > oldTime &&
+                    targetRevisions[time] != this.detailsInfo.revision) {
+                    targetTime = time;
+                    break;
+                }
+            }
+
+            if (targetTime != null && (newTime == null || targetTime < newTime)) {
+                newTime = targetTime;
+                newRevision = targetRevisions[targetTime];
+                newTarget = target;
+            }
+        } else {
+            for (var j = 2 * target.values.length - 2; j >= 0; j -= 2) {
+                var time = target.values.data[j];
+                if (time < oldTime &&
+                    targetRevisions[time] != this.detailsInfo.revision) {
+                    targetTime = time;
+                    break;
+                }
+            }
+
+            if (targetTime != null && (newTime == null || targetTime > newTime)) {
+                newTime = targetTime;
+                newRevision = targetRevisions[targetTime];
+                newTarget = target;
+            }
+        }
+    }
+
+    if (newTime != null) {
+        chart.setHover(newTarget, newTime);
+
+        this.detailsInfo.time = newTime;
+        this.detailsInfo.revision = newRevision;
+        this.refreshDetails();
+        this.queueRefresh();
+    }
+}
+
+PerfDisplay.prototype.refreshDetails = function() {
+    if (!this.detailsInfo)
+        return;
+
+    $( "#detailsDetails" ).empty();
+    $( "#detailsLink" ).empty();
+
+    if (this.detailsInfo.time < this.startSeconds + this.rangeSeconds * 0.1)
+        this.setPositionAndRange(this.detailsInfo.time + this.rangeSeconds * 0.4, this.rangeType, true);
+    else if (this.detailsInfo.time > this.startSeconds + this.rangeSeconds * 0.9)
+        this.setPositionAndRange(this.detailsInfo.time - this.rangeSeconds * 0.4, this.rangeType, true);
+
+    if (this.detailsInfo.revision in this.revisions) {
+        this.updateDetails();
+        return;
+    }
+
+    var date = new Date(this.detailsInfo.time * 1000.);
+    this.fetchRevisions(date);
+
+    if (date.getUTCHours() == 23)
+        this.fetchRevisions(new Date(date.getTime() + DAY_MSECS));
+    else if (date.getUTCHours() == 0)
+        this.fetchRevisions(new Date(date.getTime() - DAY_MSECS));
+}
+
+PerfDisplay.prototype.updateDetails = function() {
+    if (!this.detailsInfo)
+        return;
+
+    var revision = this.detailsInfo.revision;
+    var build = this.revisions[this.detailsInfo.revision];
+    if (build == null)
+        return;
+
+    var parts = build.split("/");
+    var id = parts[0] + parts[1] + parts[2] + "." + parts[3];
+    $( "#detailsLink" )
+        .attr('href', 'http://build.gnome.org/#/build/' + id)
+        .text(id);
+
+    var url = 'http://build.gnome.org/continuous/work/builds/' + build + '/bdiff.json';
+    $.ajax({datatype: "json",
+            url: url,
+            success:
+            function(data) {
+                if (!this.detailsInfo || this.detailsInfo.revision != revision)
+                    return;
+
+                this.fillDetails(data);
+            }.bind(this)});
+}
+
+PerfDisplay.prototype.fillDetails = function(data) {
+    $( "#detailsDetails" ).empty();
+
+    for (var i = 0; i < data.modified.length; i++) {
+        var modified = data.modified[i];
+        var name = modified.latest.name;
+        var src = modified.latest.src;
+
+        var cgitBase = null;
+
+        var m;
+        m = /^git:git:\/\/git.gnome.org\/(.*)/.exec(src);
+        if (m)
+            cgitBase = 'http://git.gnome.org/browse/' + m[1];
+        m = /^git:git:\/\/anongit.freedesktop.org\/git\/(.*)/.exec(src);
+        if (m)
+            cgitBase = 'http://cgit.freedesktop.org/' + m[1];
+
+        var divQ = $( "<div class='module-detail'></div> ").appendTo("#detailsDetails");
+        $( "<div class='module-title' /> ").appendTo(divQ).text(name);
+
+
+        for (var j = 0; j < modified.gitlog.length; j++) {
+            var log = modified.gitlog[j];
+            var subject;
+            if (log.Subject.length > 60)
+                subject = log.Subject.substring(0, 57) + "...";
+            else
+                subject = log.Subject;
+            if (cgitBase) {
+                var commitQ = $( "<div class='module-commit' />" ).appendTo(divQ);
+                var url = cgitBase + '/commit/?id=' + log.Checksum;
+                $( "<a />" ).attr('href', url).attr('target', 'commitDetails').text(subject).appendTo(commitQ);
+            } else {
+                $( "<div class='module-commit' /> ").appendTo(divQ).text(subject);
+            }
+        }
+    }
+}
+
+PerfDisplay.prototype.fetchRevisions = function(date) {
+    var datePath = date.getUTCFullYear() + '/' + pad(date.getUTCMonth() + 1) + '/' +  pad(date.getUTCDate());
+    if (datePath in this.loadedRevisions)
+        return;
+
+    this.loadedRevisions[datePath] = 1;
+
+    var url = 'http://build.gnome.org/continuous/work/builds/' + datePath + '/index.json';
+    $.ajax({datatype: "json",
+            url: url,
+            success:
+            function(data) {
+                var targetMap = data.targetMap;
+                for (var revision in targetMap)
+                    this.revisions[revision] = datePath + '/' + targetMap[revision][0];
+                this.updateDetails();
+            }.bind(this)});
 }
 
 //////////////////////////////////////////////////////////////////////////////////

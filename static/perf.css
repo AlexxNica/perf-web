@@ -12,6 +12,10 @@ body {
     cursor: grabbing;
 }
 
+.clear {
+    clear: both;
+}
+
 html, body {
     margin: 0px;
     padding: 0px;
@@ -132,6 +136,11 @@ h1 {
     fill: #aaaaaa;
 }
 
+.chart-highlight {
+    fill: none;
+    stroke: red;
+}
+
 a {
     color: #3465A4;
 }
@@ -160,6 +169,10 @@ a {
     overflow: scroll;
 }
 
+body.details-showing #mainLeft {
+    bottom: 100px;
+}
+
 #mainLeft, #mainRight {
     top: 160px;
 }
@@ -175,6 +188,10 @@ a {
     bottom: 0px;
     overflow: hidden;
     z-index: 0;
+}
+
+body.details-showing #mainRight {
+    bottom: 100px;
 }
 
 #mainRight table {
@@ -296,10 +313,126 @@ a {
     bottom: 100px;
 }
 
+#metricPage.details-showing .chart-div {
+    bottom: 0px;
+}
+
 #metricPage .chart {
     height: 100%;
 }
 
 #metricPage #mainLeft {
     overflow: hidden;
+}
+
+#hover {
+    display: none;
+    font-size: 10px;
+    padding: 2px;
+    position: fixed;
+    background: rgba(0, 0, 0, 0.5);
+    color: white;
+    left: 0px;
+}
+
+#details {
+    position: fixed;
+    display: none;
+    height: 100px;
+    bottom: 0px;
+    left: 0px;
+    right: 0px;
+    border-top: 1px solid #aaaaaa;
+    overflow-y: scroll;
+    font-size: 11px;
+}
+
+#details a {
+    text-decoration: none;
+}
+
+#detailsTitle {
+    font-size: 12px;
+    margin-left: 3px;
+    margin-bottom: 3px;
+}
+
+body.details-showing #details {
+    display: block;
+}
+
+#detailsButtons {
+    position: absolute;
+    right: 0px;
+    top: 0px;
+    width: 30px;
+    height: 10px;
+}
+
+#detailsButtons div {
+    position: absolute;
+    top: 0px;
+    width: 10px;
+    height: 10px;
+    background-size: contain;
+    box-shadow: inset -1px -1px 3px -1px #aaaaaa;
+    border-bottom: 1px solid #aaaaaa;
+    border-left: 1px solid #aaaaaa;
+}
+
+#detailsButtons div:active {
+    box-shadow: inset 1px 1px 3px -1px #888888;
+}
+
+#detailsPrevious {
+    left: 0px;
+    background: url(/static/images/go-previous.png),#eeeeee;
+}
+
+#detailsPrevious:hover {
+    background: url(/static/images/go-previous.png);
+    background-size: contain;
+}
+
+#detailsPrevious:active {
+    background: url(/static/images/go-previous.png),#aaaaaa;
+    background-size: contain;
+}
+
+#detailsNext {
+    left: 10px;
+    background: url(/static/images/go-next.png),#eeeeee;
+}
+
+#detailsNext:hover {
+    background: url(/static/images/go-next.png);
+    background-size: contain;
+}
+
+#detailsNext:active {
+    background: url(/static/images/go-next.png),#aaaaaa;
+    background-size: contain;
+}
+
+#detailsClose {
+    left: 20px;
+    background: url(/static/images/window-close.png),#eeeeee;
+}
+
+#detailsClose:hover {
+    background: url(/static/images/window-close.png);
+    background-size: contain;
+}
+
+#detailsClose:active {
+    background: url(/static/images/window-close.png),#aaaaaa;
+    background-size: contain;
+}
+
+.module-detail {
+    float: left;
+    border: 1px solid #aaaaaa;
+    padding: 2px;
+    margin-right: 3px;
+    margin-bottom: 3px;
 }
