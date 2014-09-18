@@ -1870,14 +1870,14 @@ PerfDisplay.prototype.updateDetails = function() {
     var parts = build.split("/");
     var id = parts[0] + parts[1] + parts[2] + "." + parts[3];
     $( "#detailsLink" )
-        .attr('href', 'http://build.gnome.org/#/build/' + id)
+        .attr('href', 'https://build.gnome.org/#/build/' + id)
         .text(id);
 
     var buildCount = builds.length;
     var modified = [];
 
     for (var i = 0; i < builds.length; i++) {
-        var url = 'http://build.gnome.org/continuous/work/builds/' + builds[i] + '/bdiff.json';
+        var url = 'https://build.gnome.org/continuous/work/builds/' + builds[i] + '/bdiff.json';
         var me = this;
         $.ajax({datatype: "json",
                 url: url,
@@ -1939,7 +1939,7 @@ PerfDisplay.prototype.fillDetails = function(modifiedArrays) {
         var m;
         m = /^git:git:\/\/git.gnome.org\/(.*)/.exec(src);
         if (m)
-            cgitBase = 'http://git.gnome.org/browse/' + m[1];
+            cgitBase = 'https://git.gnome.org/browse/' + m[1];
         m = /^git:git:\/\/anongit.freedesktop.org\/git\/(.*)/.exec(src);
         if (m)
             cgitBase = 'http://cgit.freedesktop.org/' + m[1];
@@ -1973,7 +1973,7 @@ PerfDisplay.prototype.fetchRevisions = function(date) {
 
     this.loadedRevisions[datePath] = 1;
 
-    var url = 'http://build.gnome.org/continuous/work/builds/' + datePath + '/index.json';
+    var url = 'https://build.gnome.org/continuous/work/builds/' + datePath + '/index.json';
     $.ajax({datatype: "json",
             url: url,
             success:
