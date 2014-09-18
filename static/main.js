@@ -116,7 +116,8 @@ Chart.prototype.setHover = function(target, time, isMouse) {
     var topY = this.y(this.topValue);
     var bottomY = this.y(this.bottomValue);
     var values = target.values;
-    for (var j = 0; j < 2 * values.length; j++) {
+    var lastTime = null;
+    for (var j = 0; j < 2 * values.length; j += 2) {
         if (values.data[j] == time) {
             var offset = $( this.body ).offset();
             var x = this.x(time);
@@ -131,12 +132,16 @@ Chart.prototype.setHover = function(target, time, isMouse) {
                 units: this.units,
                 time: time,
                 revision: theDisplay.allTargets[target.target].revisions[time],
+                lastTime: lastTime,
+                lastRevision: lastTime ? theDisplay.allTargets[target.target].revisions[lastTime] : null,
                 value: values.data[j + 1] * this.multiplier,
                 isMouse: isMouse
             });
 
             return;
         }
+
+        lastTime = values.data[j];
     }
 }
 
@@ -183,7 +188,8 @@ Chart.prototype.onDblClick = function(event) {
         if (theDisplay.hoverInfo)
             theDisplay.setDetails({ time: theDisplay.hoverInfo.time,
                                     metric: theDisplay.hoverInfo.metric,
-                                    revision: theDisplay.hoverInfo.revision });
+                                    revision: theDisplay.hoverInfo.revision,
+                                    lastRevision: theDisplay.hoverInfo.lastRevision });
     }
 }
 
@@ -1190,6 +1196,7 @@ function PerfDisplay(target, metric, dataMinTime, dataMaxTime, centerTime, range
     this.loadedRanges = new TimeRanges();
 
     this.revisions = {};
+    this.buildCount = {};
     this.loadedRevisions = {};
 
     this.setPositionAndRange(centerTime, rangeType, false);
@@ -1684,6 +1691,7 @@ PerfDisplay.prototype.moveDetails = function(direction)
 
     var targets = chart.getTargets();
     var newTime = null;
+    var newLastTime = null;
     var newTarget = null;
     var newRevision = null;
     var oldTime = this.detailsInfo.time;
@@ -1692,37 +1700,48 @@ PerfDisplay.prototype.moveDetails = function(direction)
         var target = targets[i];
         var targetRevisions = this.allTargets[target.target].revisions;
         var targetTime = null;
+        var targetIndex = null;
 
         if (direction > 0) {
             for (var j = 0; j <= 2 * target.values.length; j += 2) {
                 var time = target.values.data[j];
                 if (time > oldTime &&
                     targetRevisions[time] != this.detailsInfo.revision) {
-                    targetTime = time;
+                    targetIndex = j;
                     break;
                 }
             }
 
-            if (targetTime != null && (newTime == null || targetTime < newTime)) {
-                newTime = targetTime;
-                newRevision = targetRevisions[targetTime];
+            if (targetIndex != null && (newTime == null || targetTime < newTime)) {
+                newTime = target.values.data[targetIndex];
+                newRevision = targetRevisions[newTime];
+                newLastTime = (targetIndex > 0) ? target.values.data[targetIndex - 2] : null;
+                newLastRevision = newLastTime ? targetRevisions[newLastTime] : null;
                 newTarget = target;
             }
+
+            if (targetIndex != null && newTime != null && newTime <= target.values.data[targetIndex])
+                targetIndex = null;
         } else {
             for (var j = 2 * target.values.length - 2; j >= 0; j -= 2) {
                 var time = target.values.data[j];
                 if (time < oldTime &&
                     targetRevisions[time] != this.detailsInfo.revision) {
-                    targetTime = time;
+                    targetIndex = j;
                     break;
                 }
             }
 
-            if (targetTime != null && (newTime == null || targetTime > newTime)) {
-                newTime = targetTime;
-                newRevision = targetRevisions[targetTime];
-                newTarget = target;
-            }
+            if (targetIndex != null && newTime != null && newTime >= target.values.data[targetIndex])
+                targetIndex = null;
+        }
+
+        if (targetIndex != null) {
+            newTime = target.values.data[targetIndex];
+            newRevision = targetRevisions[newTime];
+            newLastTime = (targetIndex > 0) ? target.values.data[targetIndex - 2] : null;
+            newLastRevision = newLastTime ? targetRevisions[newLastTime] : null;
+            newTarget = target;
         }
     }
 
@@ -1731,6 +1750,8 @@ PerfDisplay.prototype.moveDetails = function(direction)
 
         this.detailsInfo.time = newTime;
         this.detailsInfo.revision = newRevision;
+        this.detailsInfo.lastTime = newLastTime;
+        this.detailsInfo.lastRevision = newLastRevision;
         this.refreshDetails();
         this.queueRefresh();
     }
@@ -1748,28 +1769,103 @@ PerfDisplay.prototype.refreshDetails = function() {
     else if (this.detailsInfo.time > this.startSeconds + this.rangeSeconds * 0.9)
         this.setPositionAndRange(this.detailsInfo.time - this.rangeSeconds * 0.4, this.rangeType, true);
 
-    if (this.detailsInfo.revision in this.revisions) {
-        this.updateDetails();
+    if (this.updateDetails())
         return;
+
+    // In order to map revisions to builds and figure out what builds were
+    // between detailsInfo.lastRevision and detailsInfo.revision, we need to
+    // have the index.json loaded for each day between the times, with a
+    // bit of extra padding added on the sides. (We especially need padding
+    // before since the build might have a date of the day before the
+    // test controller pulled the result.)
+
+    var startDate;
+    if (this.detailsInfo.lastTime != null)
+        startDate = new Date(this.detailsInfo.lastTime * 1000.);
+    else
+        startDate = new Date(this.detailsInfo.time * 1000.);
+
+    var endDate = new Date(this.detailsInfo.time * 1000.);
+
+    if (startDate.getUTCHours() == 0)
+        startDate.setTime(startDate.getTime() - DAY_MSECS);
+    if (endDate.getUTCHours() == 23)
+        endDate.setTime(startDate.getTime() + DAY_MSECS);
+
+    TIME_OPS['day'].truncate(startDate);
+    TIME_OPS['day'].truncate(endDate);
+
+    while (startDate.getTime() <= endDate.getTime()) {
+        this.fetchRevisions(startDate);
+        TIME_OPS['day'].next(startDate);
     }
-
-    var date = new Date(this.detailsInfo.time * 1000.);
-    this.fetchRevisions(date);
-
-    if (date.getUTCHours() == 23)
-        this.fetchRevisions(new Date(date.getTime() + DAY_MSECS));
-    else if (date.getUTCHours() == 0)
-        this.fetchRevisions(new Date(date.getTime() - DAY_MSECS));
 }
 
+// Find all the build IDs starting from the one after lastBuild up to build.
+// If we haven't loaded the necessary index.json from build.gnome.org, returns null
+PerfDisplay.prototype.buildsInRange = function(lastBuild, build) {
+    var parts;
+
+    if (lastBuild == null)
+        return [build];
+
+    parts = lastBuild.split("/");
+    var startDate = new Date(parts[0], Number(parts[1]) - 1, parts[2]);
+    var startNumber = Number(parts[3]);
+    var date = new Date(parts[0], Number(parts[1]) - 1, parts[2]);
+    parts = build.split("/");
+    var endDate = new Date(parts[0], Number(parts[1]) - 1, parts[2]);
+    var endNumber = Number(parts[3]);
+
+    builds = [];
+    while (date.getTime() <= endDate.getTime()) {
+        var datePath = date.getUTCFullYear() + '/' + pad(date.getUTCMonth() + 1) + '/' + pad(date.getUTCDate());
+
+        var from, to;
+        if (date.getTime() == startDate.getTime())
+            from = startNumber + 1;
+        else
+            from = 0;
+
+        if (date.getTime() == endDate.getTime())
+            to = endNumber;
+        else {
+            if (datePath in this.buildCount)
+                to = this.buildCount[datePath] - 1;
+            else
+                return NULL;
+        }
+
+        for (var i = from; i <= to; i++)
+            builds.push(datePath + '/' + i);
+
+        TIME_OPS['day'].next(date);
+    }
+
+    return builds;
+}
+
+// Fills in the commits into the details area.
+// If we haven't loaded the necessary index.json from build.gnome.org, returns false
 PerfDisplay.prototype.updateDetails = function() {
     if (!this.detailsInfo)
-        return;
+        return false;
 
     var revision = this.detailsInfo.revision;
     var build = this.revisions[this.detailsInfo.revision];
     if (build == null)
-        return;
+        return false;
+
+    var lastBuild;
+    if (this.detailsInfo.lastRevision != null) {
+        lastBuild = this.revisions[this.detailsInfo.lastRevision];
+        if (lastBuild == null)
+            return false;
+    }
+
+    var builds = this.buildsInRange(lastBuild, build);
+    if (builds == null)
+        return false;
 
     var parts = build.split("/");
     var id = parts[0] + parts[1] + parts[2] + "." + parts[3];
@@ -1777,25 +1873,66 @@ PerfDisplay.prototype.updateDetails = function() {
         .attr('href', 'http://build.gnome.org/#/build/' + id)
         .text(id);
 
-    var url = 'http://build.gnome.org/continuous/work/builds/' + build + '/bdiff.json';
-    $.ajax({datatype: "json",
-            url: url,
-            success:
-            function(data) {
-                if (!this.detailsInfo || this.detailsInfo.revision != revision)
-                    return;
+    var buildCount = builds.length;
+    var modified = [];
 
-                this.fillDetails(data);
-            }.bind(this)});
+    for (var i = 0; i < builds.length; i++) {
+        var url = 'http://build.gnome.org/continuous/work/builds/' + builds[i] + '/bdiff.json';
+        var me = this;
+        $.ajax({datatype: "json",
+                url: url,
+                context: { build: builds[i] },
+                success:
+                function(data) {
+                    // Replies can come in any order, so we have to tag the replies with the
+                    // build IDs, then sort them back into order
+                    data.modified.build = this.build;
+                    modified.push(data.modified);
+                },
+                complete:
+                function(requestCount, status) {
+                    buildCount--;
+                    if (buildCount == 0) {
+                        modified.sort(function(a, b) {
+                            return (a.build < b.build) ? -1 : 1;
+                        });
+                        this.fillDetails(modified);
+                    }
+                }.bind(this)});
+    }
+
+    return true;
 }
 
-PerfDisplay.prototype.fillDetails = function(data) {
+PerfDisplay.prototype.fillDetails = function(modifiedArrays) {
     $( "#detailsDetails" ).empty();
 
-    for (var i = 0; i < data.modified.length; i++) {
-        var modified = data.modified[i];
-        var name = modified.latest.name;
-        var src = modified.latest.src;
+    // Combine entries so that we have one for each module, even if we
+    // are displaying data for several builds
+    var moduleInfos = {};
+    for (var i = 0; i < modifiedArrays.length; i++) {
+        var arr = modifiedArrays[i];
+        for (var j = 0; j < arr.length; j++) {
+            var moduleInfo = arr[j];
+            var name = moduleInfo.latest.name;
+            if (name in moduleInfos) {
+                [].push.apply(moduleInfos[name].gitlog, moduleInfo.gitlog);
+            } else {
+                moduleInfos[name] = moduleInfo;
+            }
+        }
+    }
+
+    // Sort the modules into a consistent order
+    var moduleNames = [];
+    for (var moduleName in moduleInfos)
+        moduleNames.push(moduleName);
+    moduleNames.sort();
+
+    for (var i = 0; i < moduleNames.length; i++) {
+        var name = moduleNames[i];
+        var moduleInfo = moduleInfos[name];
+        var src = moduleInfo.latest.src;
 
         var cgitBase = null;
 
@@ -1811,8 +1948,8 @@ PerfDisplay.prototype.fillDetails = function(data) {
         $( "<div class='module-title' /> ").appendTo(divQ).text(name);
 
 
-        for (var j = 0; j < modified.gitlog.length; j++) {
-            var log = modified.gitlog[j];
+        for (var j = 0; j < moduleInfo.gitlog.length; j++) {
+            var log = moduleInfo.gitlog[j];
             var subject;
             if (log.Subject.length > 60)
                 subject = log.Subject.substring(0, 57) + "...";
@@ -1844,6 +1981,13 @@ PerfDisplay.prototype.fetchRevisions = function(date) {
                 var targetMap = data.targetMap;
                 for (var revision in targetMap)
                     this.revisions[revision] = datePath + '/' + targetMap[revision][0];
+                var buildCount = 0;
+                for (var subdir in data.subdirs) {
+                    var buildId = Number(subdir);
+                    if (buildId + 1 > buildCount)
+                        buildCount = buildId + 1;
+                }
+                this.buildCount[datePath] = buildCount;
                 this.updateDetails();
             }.bind(this)});
 }
