@@ -9,6 +9,7 @@ urlpatterns = patterns('',
     url(r'^machines$', 'metrics.views.machines'),
     url(r'^metric/(?P<metric_name>[^/]+)$', 'metrics.views.metric'),
     url(r'^target/(?P<machine_name>[^/]+)/(?P<partition_name>[^/]+)/(?P<tree_name>[^/]+)/(?P<testset_name>[^/]+)$', 'metrics.views.target'),
+    url(r'^log/(?P<machine_name>[^/]+)/(?P<partition_name>[^/]+)/(?P<tree_name>[^/]+)/(?P<testset_name>[^/]+)/(?P<report_id>\d+).(?P<format>txt|json|html)$', 'metrics.views.log'),
     # target=MACHINE/PARTITION/TREE/TESTSET, metric=METRIC, start=YYYY-MM-YY, end=YYYY-MM-YY, group=none|hour6|day|week|month
     url(r'^api/values$', 'metrics.views.values'),
     url(r'^api/upload$', 'metrics.views.upload')

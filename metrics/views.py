@@ -6,6 +6,7 @@ import sys
 
 from django.conf import settings
 from django.db.models import Min, Max
+from django.core.exceptions import ObjectDoesNotExist
 from django.template import Context, loader
 from django.http import HttpResponse, HttpResponseNotFound, HttpResponseBadRequest
 from django.utils import timezone
@@ -30,7 +31,9 @@ else:
 def home(request):
     t = loader.get_template('metrics/home.html')
 
-    time_range = Report.objects.aggregate(min=Min('pull_time'), max=Max('pull_time'));
+    time_range = Report.objects \
+         .filter(error='') \
+         .aggregate(min=Min('pull_time'), max=Max('pull_time'));
     if time_range['min'] is None:
         time_range['min'] = time_range['max'] = timezone.now()
 
@@ -54,7 +57,8 @@ def metric(request, metric_name):
 
     t = loader.get_template('metrics/metric.html')
     time_range = Report.objects \
-                   .aggregate(min=Min('pull_time'), max=Max('pull_time'));
+                       .filter(error='') \
+                       .aggregate(min=Min('pull_time'), max=Max('pull_time'));
     if time_range['min'] is None:
         time_range['min'] = time_range['max'] = timezone.now()
 
@@ -76,10 +80,18 @@ def target(request, machine_name, partition_name, tree_name, testset_name):
 
     t = loader.get_template('metrics/target.html')
     time_range = Report.objects \
-                   .filter(target__name=target.name) \
+                   .filter(target__name=target.name, error='') \
                    .aggregate(min=Min('pull_time'), max=Max('pull_time'));
     if time_range['min'] is None:
         time_range['min'] = time_range['max'] = timezone.now()
+
+    error_report = None
+    error_time = None
+    try:
+        error_report = Report.objects.filter(target__name=target_name).exclude(error='').latest('pull_time')
+        error_time = unix_time(error_report.pull_time)
+    except ObjectDoesNotExist:
+        pass
 
     c = Context({
         'page_name': 'target',
@@ -88,6 +100,8 @@ def target(request, machine_name, partition_name, tree_name, testset_name):
         'partition': target.partition,
         'tree': target.tree,
         'testset': target.testset,
+        'error_report': error_report,
+        'error_time': error_time,
         'metrics': config.Metric.all(),
         'min_time': unix_time(time_range['min']),
         'max_time': unix_time(time_range['max']),
@@ -344,18 +358,25 @@ def process_report(data, machine_name):
     except ValueError:
         raise ValidationError("Can't parse property 'pullTime'")
 
-    metrics_data = child_array(data, 'metrics')
-    for metric_data in metrics_data:
-        if not isinstance(metric_data, dict):
-            raise ValidationError("metric is not an object")
+    error = None
+    log = None
+    metrics_data = None
+    if 'error' in data:
+        error = child_string(data, 'error')
+        log = child_array(data, 'log')
+    else:
+        metrics_data = child_array(data, 'metrics')
+        for metric_data in metrics_data:
+            if not isinstance(metric_data, dict):
+                raise ValidationError("metric is not an object")
 
-        metric_name = child_string(metric_data, 'name')
-        try:
-            metric = config.Metric.get(metric_name)
-        except KeyError:
-            raise ValidationError("unknown metric '%s'" % metric_name)
+            metric_name = child_string(metric_data, 'name')
+            try:
+                metric = config.Metric.get(metric_name)
+            except KeyError:
+                raise ValidationError("unknown metric '%s'" % metric_name)
 
-        metric_value = child_number(metric_data, 'value')
+            metric_value = child_number(metric_data, 'value')
 
     # Now actually store into the database
 
@@ -368,20 +389,30 @@ def process_report(data, machine_name):
                                                      })
     report = Report(target=target_dbobj,
                     revision=revision,
-                    pull_time=pull_time)
+                    pull_time=pull_time,
+                    error=error if error is not None else '')
     report.save()
+    if log is not None:
+        log_dir = os.path.join(settings.LOG_ROOT, target_name.replace('/', '-'))
+        if not os.path.exists(log_dir):
+            os.makedirs(log_dir)
+        log_path = os.path.join(log_dir,
+                                pull_time.strftime('%Y-%m-%d-%H:%M:%S') + '-' + revision + '.json')
+        with open(log_path, 'w') as fp:
+            json.dump(log, fp)
 
-    for metric_data in metrics_data:
-        metric_name = child_string(metric_data, 'name')
-        metric = config.Metric.get(metric_name)
-        metric_value = child_number(metric_data, 'value')
+    if metrics_data is not None:
+        for metric_data in metrics_data:
+            metric_name = child_string(metric_data, 'name')
+            metric = config.Metric.get(metric_name)
+            metric_value = child_number(metric_data, 'value')
 
-        (metric_dbobj, _) = Metric.objects.get_or_create(name=metric_name)
+            (metric_dbobj, _) = Metric.objects.get_or_create(name=metric_name)
 
-        value = Value(report=report,
-                      metric=metric_dbobj,
-                      value=metric_value)
-        value.save()
+            value = Value(report=report,
+                          metric=metric_dbobj,
+                          value=metric_value)
+            value.save()
 
 @require_POST
 @csrf_exempt
@@ -414,3 +445,172 @@ def upload(request):
         return HttpResponseBadRequest(e.message)
 
     return HttpResponse("OK\n")
+
+_PRIORITY_RE = re.compile('^[0-7]$')
+_LINE_RE = re.compile('^([^\n]*(?:\n[^\n]*){2})\n')
+_ESCAPE_RE = re.compile(r'\0x1b[0-9;]+m')
+# C0 and C1 control characters, DEL, except for \t\n
+_UNICODE_CONTROL_RE = re.compile(r'[\x00-\x08\x0A-\x1F\x7F-\x9F]')
+
+def escape_character(m):
+    c = m.group(0)
+    if c == '\n':
+        return '\\n'
+    elif c == '\r':
+        return '\\r'
+    else:
+        return '\\x%02x' % ord(c)
+
+def log(request, machine_name, partition_name, tree_name, testset_name, report_id, format):
+    target_name = machine_name + '/' + partition_name + '/' + tree_name + '/' + testset_name
+    try:
+        target = config.Target.get(target_name)
+    except KeyError:
+        return HttpResponseNotFound("No such target")
+
+    try:
+        report = Report.objects.get(id=report_id,
+                                    target__name=target.name)
+    except ObjectDoesNotExist:
+        return HttpResponseNotFound("No such log")
+
+    log_path = os.path.join(settings.LOG_ROOT,
+                            target.name.replace('/', '-'),
+                            report.pull_time.strftime('%Y-%m-%d-%H:%M:%S') + '-' + report.revision + '.json')
+    try:
+        fp = open(log_path, 'r')
+    except IOError, e:
+        return HttpResponseNotFound("Log has been purged")
+
+    if format == 'json':
+        # Could using StreamingHttpResponse; as below Django will just
+        # pile the chunks up in an array
+        response = HttpResponse(content_type="application/json")
+        while True:
+            buf = fp.read(32*1024)
+            if buf == '':
+                break
+            response.write(buf)
+    else:
+        if format == 'html':
+            response = HttpResponse(content_type="text/html; charset=utf-8")
+            response.write('''<!DOCTYPE html><html>
+<head>
+  <title>%s - %s</title>
+  <style type="text/css">
+     .error { color: red; }
+     .notice { font-weight: bold; }
+  </style>
+</head>
+<body><pre>''' % (report.pull_time.strftime('%Y-%m-%d %H:%M:%S'), target_name))
+        else:
+            response = HttpResponse(content_type="text/plain; charset=utf-8")
+        log = json.load(fp)
+        for record in log:
+            # We write out log records in roughly the same format as
+            # the journalctl -o iso-short format
+            try:
+                time = long(record['_SOURCE_REALTIME_TIMESTAMP'])
+            except KeyError:
+                time = 0
+            if time == 0:
+                for f in record['__CURSOR'].split(';'):
+                    if f.startswith('t='):
+                        time = long(f[2:], 16)
+            dt = datetime.utcfromtimestamp(time/1000000)
+            # This is like journalctl -o short-iso; default is '%b %d %H:%M:%S'
+            response.write(dt.strftime('%Y-%m-%dT%H:%M:%S%z '))
+
+            # journalctl shows the hostname here - that isn't interesting for us
+            #
+            # try:
+            #    response.write(record['_HOSTNAME'])
+            # except KeyError:
+            #    pass
+            #
+            # response.write(' ')
+
+            try:
+                response.write(record['SYSLOG_IDENTIFIER'])
+            except KeyError:
+                response.write(record['_COMM'])
+
+            pid = None
+            try:
+                pid = record['_PID']
+            except KeyError:
+                try:
+                    pid = record['_SYSLOG_PID']
+                except KeyError:
+                    pass
+            if pid != None:
+                response.write('[')
+                response.write(pid)
+                response.write(']')
+
+            response.write(': ')
+
+            message = record['MESSAGE']
+
+            # If the message was an escaped blob, try to convert it to text
+            if type(message) == list:
+                message = ''.join((chr(x) for x in message))
+                try:
+                    message = unicode(message, 'UTF-8')
+                except UnicodeDecodeError:
+                    # journalctl falls back to printing the bytes, this seems more useful
+                    message = repr(message)[1:-1]
+
+            # 300 characters or 3 lines, whichever is less; journalctl does
+            # a more sophisticated approach to ellipsization where it ellipsizes
+            # middle lines
+            if len(message) > 300:
+                message = message[0:300] + "..."
+            m = _LINE_RE.match(message)
+            if m:
+                message = m.group(1) + "..."
+
+            # For multi-line log messages, journalctl indents subsequent lines
+            # with spaces to have the same indent as the first line has
+            # pre-message text, but multi-line log messages are quite rare
+            # so we skip that
+
+            # Remove ANSI color escapes and replace tabs with 8 spaces
+            message = _ESCAPE_RE.sub('', message)
+            message = message.replace("\t", "        ")
+
+            # Escape control characters; again journalctl would just print
+            # the message as bytes
+            message = _UNICODE_CONTROL_RE.sub(escape_character, message)
+
+            # For HTML mode, use bold/red to mark different priorities
+            if format == 'html':
+                priority = 6 # Info
+                try:
+                    priority_str = record['PRIORITY']
+                    if _PRIORITY_RE.match(priority_str):
+                        priority = int(priority_str)
+                except KeyError:
+                    pass
+
+                if priority <= 3: # error
+                    response.write('<span class="error">');
+                    response.write(message)
+                    response.write('</span>')
+                elif priority <= 5:  #notice
+                    response.write('<span class="notice">');
+                    response.write(message)
+                    response.write('</span>')
+                else:
+                    response.write(message)
+            else:
+                response.write(message)
+
+            response.write('\n')
+
+        if format == 'html':
+            response.write('</pre></body')
+
+    fp.close()
+
+    return response

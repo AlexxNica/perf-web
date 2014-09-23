@@ -1633,6 +1633,13 @@ PerfDisplay.prototype.onWindowLoaded = function() {
         this.refresh();
     }.bind(this));
 
+    var failureReference = $( "#failureReference" ).get(0);
+    if (failureReference != null) {
+        var failureTime = Number(failureReference.getAttribute("data-time"));
+        this.failureRevision = failureReference.getAttribute("data-revision");
+        this.fetchRevisions(failureTime, failureTime);
+    }
+
     this.updateHints();
 
     if (!this.loadedRanges.isEmpty())
@@ -1774,31 +1781,10 @@ PerfDisplay.prototype.refreshDetails = function() {
 
     // In order to map revisions to builds and figure out what builds were
     // between detailsInfo.lastRevision and detailsInfo.revision, we need to
-    // have the index.json loaded for each day between the times, with a
-    // bit of extra padding added on the sides. (We especially need padding
-    // before since the build might have a date of the day before the
-    // test controller pulled the result.)
+    // load all index.json's that could affect the time.
 
-    var startDate;
-    if (this.detailsInfo.lastTime != null)
-        startDate = new Date(this.detailsInfo.lastTime * 1000.);
-    else
-        startDate = new Date(this.detailsInfo.time * 1000.);
-
-    var endDate = new Date(this.detailsInfo.time * 1000.);
-
-    if (startDate.getUTCHours() == 0)
-        startDate.setTime(startDate.getTime() - DAY_MSECS);
-    if (endDate.getUTCHours() == 23)
-        endDate.setTime(startDate.getTime() + DAY_MSECS);
-
-    TIME_OPS['day'].truncate(startDate);
-    TIME_OPS['day'].truncate(endDate);
-
-    while (startDate.getTime() <= endDate.getTime()) {
-        this.fetchRevisions(startDate);
-        TIME_OPS['day'].next(startDate);
-    }
+    this.fetchRevisions(this.detailsInfo.lastTime != null ? this.detailsInfo.lastTime : this.detailsInfo.time,
+                        this.detailsInfo.time);
 }
 
 // Find all the build IDs starting from the one after lastBuild up to build.
@@ -1845,6 +1831,11 @@ PerfDisplay.prototype.buildsInRange = function(lastBuild, build) {
     return builds;
 }
 
+function buildPathToBuildId(path) {
+    var parts = path.split("/");
+    return parts[0] + parts[1] + parts[2] + "." + parts[3];
+}
+
 // Fills in the commits into the details area.
 // If we haven't loaded the necessary index.json from build.gnome.org, returns false
 PerfDisplay.prototype.updateDetails = function() {
@@ -1867,8 +1858,7 @@ PerfDisplay.prototype.updateDetails = function() {
     if (builds == null)
         return false;
 
-    var parts = build.split("/");
-    var id = parts[0] + parts[1] + parts[2] + "." + parts[3];
+    var id = buildPathToBuildId(build);
     $( "#detailsLink" )
         .attr('href', 'https://build.gnome.org/#/build/' + id)
         .text(id);
@@ -1966,7 +1956,23 @@ PerfDisplay.prototype.fillDetails = function(modifiedArrays) {
     }
 }
 
-PerfDisplay.prototype.fetchRevisions = function(date) {
+PerfDisplay.prototype.updateFailure = function() {
+    if (this.failureRevision == null)
+        return;
+
+    var build = this.revisions[this.failureRevision];
+    if (build == null)
+        return;
+
+    var buildId = buildPathToBuildId(build);
+
+    $( "<a target='buildDetails'/>" )
+        .text( buildId )
+        .attr('href', 'https://build.gnome.org/#/build/' + buildId)
+        .appendTo($( "#failureReference" ).empty());
+}
+
+PerfDisplay.prototype._fetchRevisionsForDay = function(date) {
     var datePath = date.getUTCFullYear() + '/' + pad(date.getUTCMonth() + 1) + '/' +  pad(date.getUTCDate());
     if (datePath in this.loadedRevisions)
         return;
@@ -1989,7 +1995,30 @@ PerfDisplay.prototype.fetchRevisions = function(date) {
                 }
                 this.buildCount[datePath] = buildCount;
                 this.updateDetails();
+                this.updateFailure();
             }.bind(this)});
+}
+
+// Fetch all the index.json information for the specified range of times,
+// with bit of extra padding added on the sides. (We especially need
+// padding before since the build might have a date of the day before the
+// test controller pulled the result.)
+PerfDisplay.prototype.fetchRevisions = function(startTime, endTime) {
+    var startDate = new Date(startTime * 1000.);
+    var endDate = new Date(endTime * 1000.);
+
+    if (startDate.getUTCHours() == 0)
+        startDate.setTime(startDate.getTime() - DAY_MSECS);
+    if (endDate.getUTCHours() == 23)
+        endDate.setTime(startDate.getTime() + DAY_MSECS);
+
+    TIME_OPS['day'].truncate(startDate);
+    TIME_OPS['day'].truncate(endDate);
+
+    while (startDate.getTime() <= endDate.getTime()) {
+        this._fetchRevisionsForDay(startDate);
+        TIME_OPS['day'].next(startDate);
+    }
 }
 
 PerfDisplay.prototype.updateHints = function() {

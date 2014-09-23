@@ -17,6 +17,7 @@ class Report(models.Model):
     target = models.ForeignKey(Target)
     revision = models.CharField(max_length=64)
     pull_time = models.DateTimeField()
+    error = models.CharField(max_length=255)
 
 class Value(models.Model):
     report = models.ForeignKey(Report)

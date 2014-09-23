@@ -34,10 +34,19 @@
         <td class="target-detail">{{ testset.name }}</td>
         <td class="target-extra">{{ testset.description }}</td>
       </tr>
+    {% if error_report %}
+      <tr>
+        {% if error_time > max_time %}
+        <th class="target-failed">Failed</th>
+        {% else %}
+        <th>Last failure</th>
+        {% endif %}
+        <td id="failureReference" class="target-detail target-failed" data-time="{{error_time}}" data-revision="{{error_report.revision}}">{{ error_report.pull_time|date:"Y-m-d H:i" }}</td>
+        <td class="target-extra target-failed">{{ error_report.error }} (<a href="/log/{{error_report.target.name}}/{{error_report.id}}.html">Log</a>)</td>
+      </tr>
+    {% endif %}
     </table>
-
   </div>
-
   <div id="aboveMainLeft">
     <span id="rangeLabels">
       <a id="dayLink" href="#" onclick="setRange(event, this, 'day');">Day</a>

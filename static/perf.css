@@ -282,6 +282,7 @@ body.details-showing #mainRight {
 #targetDetails {
     border-collapse: collapse;
     margin-top: 0.5em;
+    font-size: 13px;
 }
 
 #targetDetails td, #targetDetails th {
@@ -295,6 +296,10 @@ body.details-showing #mainRight {
 
 #targetDetails .target-detail {
     font-weight: bold;
+}
+
+#targetDetails th.target-failed {
+    color: #aa0000;
 }
 
 #homePage #aboveMainLeft {
