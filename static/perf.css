@@ -117,6 +117,10 @@ h1 {
     width: 100%;
 }
 
+.chart-hover {
+    cursor: pointer;
+}
+
 .chart-title {
     font-size: 11px;
     fill: #3465A4;

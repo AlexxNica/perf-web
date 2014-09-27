@@ -4,6 +4,8 @@ var WEEK_MSECS = 7. * 24 * 60 * 60 * 1000;
 var DAY_MSECS = 24. * 60 * 60 * 1000;
 var HOUR_MSECS = 60. * 60 * 1000;
 
+var CLICK_THRESHOLD = 3;
+
 function ValueBuffer(size) {
     this.size = size;
     this.length = 0;
@@ -177,19 +179,27 @@ Chart.prototype.onMouseMove = function(event) {
         theDisplay.setHover(null);
 }
 
-Chart.prototype.onDblClick = function(event) {
-    var offset = $( this.body ).offset();
-    var x = event.pageX - offset.left;
-    var centerTime = this.time(x);
+Chart.prototype.showDetails = function() {
+    if (theDisplay.hoverInfo)
+        theDisplay.setDetails({ time: theDisplay.hoverInfo.time,
+                                metric: theDisplay.hoverInfo.metric,
+                                revision: theDisplay.hoverInfo.revision,
+                                lastRevision: theDisplay.hoverInfo.lastRevision });
+}
 
+Chart.prototype.setHovering = function(hovering)
+{
+    this.svg.setAttribute('class',
+                          hovering ? 'chart chart-hover' : 'chart');
+}
+
+Chart.prototype.onDblClick = function(event) {
     if (theDisplay.rangeType != 'day') {
+        var offset = $( this.body ).offset();
+        var x = event.pageX - offset.left;
+        var centerTime = this.time(x);
+
         theDisplay.zoomIn(centerTime);
-    } else {
-        if (theDisplay.hoverInfo)
-            theDisplay.setDetails({ time: theDisplay.hoverInfo.time,
-                                    metric: theDisplay.hoverInfo.metric,
-                                    revision: theDisplay.hoverInfo.revision,
-                                    lastRevision: theDisplay.hoverInfo.lastRevision });
     }
 }
 
@@ -758,12 +768,10 @@ function ScrollHandler(params)
     this.exclusive = params.exclusive;
     this.source = params.element;
     this.target = params.target;
-    if (params.startFunction)
-        this.startFunction = params.startFunction;
-    if (params.scrollFunctionX)
-        this.scrollFunctionX = params.scrollFunctionX;
-    if (params.scrollFunctionY)
-        this.scrollFunctionY = params.scrollFunctionY;
+    this.startFunction = params.startFunction;
+    this.scrollFunctionX = params.scrollFunctionX;
+    this.scrollFunctionY = params.scrollFunctionY;
+    this.clickFunction = params.clickFunction;
 
     params.source.addEventListener("mousedown", function(event) {
         if (event.button == 0) {
@@ -789,7 +797,7 @@ function ScrollHandler(params)
     window.addEventListener("mouseup", function(event) {
         if (this.dragStartX != null) {
             this.updateDrag(event.clientX, event.clientY);
-            this.endDrag();
+            this.endDrag(event.target);
             event.preventDefault();
             event.stopPropagation();
         }
@@ -797,8 +805,8 @@ function ScrollHandler(params)
 }
 
 ScrollHandler.prototype.startDrag = function(x, y) {
-    this.dragStartX = x;
-    this.dragStartY = y;
+    this.lastX = this.dragStartX = x;
+    this.lastY = this.dragStartY = y;
     if (this.target) {
         this.dragStartScrollTop = this.target.scrollTop;
         this.dragStartScrollLeft = this.target.scrollLeft;
@@ -809,6 +817,9 @@ ScrollHandler.prototype.startDrag = function(x, y) {
 }
 
 ScrollHandler.prototype.updateDrag = function(x, y) {
+    this.lastX = x;
+    this.lastY = y;
+
     var deltaX = x - this.dragStartX;
     var deltaY = y - this.dragStartY;
 
@@ -840,8 +851,16 @@ ScrollHandler.prototype.updateDrag = function(x, y) {
         this.target.scrollTop = this.dragStartScrollTop - deltaY;
 }
 
-ScrollHandler.prototype.endDrag = function() {
+ScrollHandler.prototype.endDrag = function(target) {
     $( document.body ).removeClass('panning');
+    if (this.clickFunction &&
+        Math.abs(this.dragStartX - this.lastX) <= CLICK_THRESHOLD &&
+        Math.abs(this.dragStartY - this.lastY) <= CLICK_THRESHOLD)
+    {
+        this.updateDrag(this.dragStartX, this.dragStartY);
+        this.clickFunction(target);
+    }
+
     this.dragStartX = null;
     this.dragLocked = null;
 }
@@ -1479,7 +1498,7 @@ PerfDisplay.prototype.updateElementsForRange = function() {
 }
 
 PerfDisplay.prototype.scrollByDeltaX = function(startTime, deltaX) {
-    if (deltaX > 3)
+    if (deltaX > CLICK_THRESHOLD)
         this.setHover(null);
 
     var chart = $( ".chart" ).first().get(0);
@@ -1597,6 +1616,16 @@ PerfDisplay.prototype.onWindowLoaded = function() {
         },
         scrollFunctionX: function(deltaX) {
             theDisplay.scrollByDeltaX(this.dragStartTime, -deltaX);
+        },
+        clickFunction: function(target) {
+            var svg = $( target ).closest(".chart").get(0);
+            if (svg != null) {
+                for (var i = 0; i < theDisplay.charts.length; i++) {
+                    var chart = theDisplay.charts[i];
+                    if (chart.svg == svg)
+                        chart.showDetails();
+                }
+            }
         }
     });
 
@@ -1648,6 +1677,15 @@ PerfDisplay.prototype.onWindowLoaded = function() {
 
 PerfDisplay.prototype.setHover = function(hoverInfo)
 {
+    var lastMetric = this.hoverInfo ? this.hoverInfo.metric : null;
+    var newMetric = hoverInfo ? hoverInfo.metric : null;
+    if (newMetric != lastMetric) {
+        for (var i = 0; i < this.charts.length; i++) {
+            var chart = this.charts[i];
+            chart.setHovering(chart.metric == newMetric);
+        }
+    }
+
     var hover = $( "#hover" ).get(0);
     this.hoverInfo = hoverInfo;
     if (hoverInfo) {
@@ -2024,8 +2062,7 @@ PerfDisplay.prototype.fetchRevisions = function(startTime, endTime) {
 PerfDisplay.prototype.updateHints = function() {
     $( "#hintPlus" ).toggleClass('hint-disabled', this.rangeType == 'day');
     $( "#hintMinus" ).toggleClass('hint-disabled', this.rangeType == 'year');
-    $( "#hintDblClickZoom" ).toggle(this.rangeType != 'day');
-    $( "#hintDblClickDetails" ).toggle(this.rangeType == 'day');
+    $( "#hintDblClickZoom" ).toggleClass('hint-disabled', this.rangeType == 'day');
     $( "#hintEsc" ).toggle(this.detailsInfo != null);
     $( "#hintLeft" ).toggle(this.detailsInfo != null);
     $( "#hintRight" ).toggle(this.detailsInfo != null);
